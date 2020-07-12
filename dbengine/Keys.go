@@ -1,7 +1,7 @@
 package dbengine
 
 import (
-	rnd "math/rand"
+	"fmt"
 	utl "myBase/utl"
 )
 
@@ -51,31 +51,55 @@ func (i *Index) Hash(hash string) bool {
 }
 
 func (i *Index) Delete(hash string) bool {
-	for _, item := range i.key {
+	for idx, item := range i.key {
 		if item.isDeleted {
 			continue
 		}
 		if item.hash == hash {
 			item.isDeleted = true
+			i.key[idx] = item
 			return true
 		}
 	}
 	return false
 }
 
-func (i *Index) Update(hash string) bool {
+func (i *Index) GetKeyByHash(hash string, what_kind int) (Key, bool) {
+	// what_kind = 0  только живых
+	// what_kind = 1  всех
 	for _, item := range i.key {
+		if what_kind == 0 {
+			if item.isDeleted {
+				continue
+			}
+		}
+		if item.hash == hash {
+			return item, true
+		}
+	}
+	return Key{}, false
+}
+
+func (i *Index) Update(hash string, newValue Key) bool {
+	for idx, item := range i.key {
 		if item.isDeleted {
 			continue
 		}
 		if item.hash == hash {
 			v := item
-			v.pos = rnd.Int63n(999)  // времнные заглушки
-			v.size = rnd.Int63n(999) // времнные заглушки
-			item.isDeleted = true
+			v.pos = newValue.pos
+			v.size = newValue.size
 			i.key = append(i.key, v)
+			item.isDeleted = true
+			i.key[idx] = item
 			return true
 		}
 	}
 	return false
+}
+
+func (i *Index) PrintAll() {
+	for idx, item := range i.key {
+		fmt.Printf(" idx=%d value=%v \n", idx, item)
+	}
 }
