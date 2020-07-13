@@ -9,15 +9,17 @@ func TestIndex(t *testing.T) {
 	index := NewIndex(memory, "test")
 	value := []byte(`test string`)
 	index.AddKey(value, 0, 0)
+	value = []byte(`test string1`)
+	index.AddKey(value, 1, 1)
 	want := utl.AsSha256(value)
 	got := index.Hash(want)
 	if !got {
 		t.Errorf(" Добавленный Hash %v не найден got = %v \n", want, got)
 	}
 
-	value = []byte(`test string1`)
-	index.AddKey(value, 0, 0)
+	value = []byte(`test string2`)
 	want = utl.AsSha256(value)
+	index.AddKey(value, 2, 2)
 	index.Delete(want)
 	got = index.Hash(want) // если true - значит не удалился !
 	if got {
@@ -33,6 +35,7 @@ func TestIndex(t *testing.T) {
 	if !ok {
 		t.Errorf("Не найдено значение ключа для %v \n", utl.AsSha256(value))
 	}
+
 	ok = index.Update(utl.AsSha256(value), newKeyValue)
 	if !ok {
 		t.Errorf("Не выполнена функция обновления для %v \n",
