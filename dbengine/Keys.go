@@ -1,6 +1,8 @@
 package dbengine
 
 import (
+	"errors"
+	"fmt"
 	utl "myBase/utl"
 )
 
@@ -17,25 +19,35 @@ type Key struct {
 */
 
 type Index struct {
-	storageType   StorageTypeEnum
-	fileIndexName string
-	queue         *Queue
+	fileIndexName string // имя индекса , имя файла имя_idx
+	queue         *Queue // очередь индекса
 }
 
-func NewIndex(stType StorageTypeEnum, fileIndexName string) *Index {
+func NewIndex(fileIndexName string) (*Index, error) {
 	err := utl.CreateFile(fileIndexName + "_idx")
 	if err != nil {
-		panic("не могу создать файл индекса " +
-			fileIndexName + "_idx")
+		return nil, errors.New(fmt.Sprintf("не могу создать файл индекса "+
+			fileIndexName+"_idx -- ошибка: %s", err))
 	}
-	return &Index{storageType: stType,
-		fileIndexName: fileIndexName + "_idx",
-		queue:         &Queue{}}
+	return &Index{fileIndexName: fileIndexName + "_idx",
+		queue: &Queue{}}, nil
 }
 
 func (i *Index) AddKey(val interface{}, pos int64, size int64) {
-	i.queue.Enqueue(&Key{hash: utl.AsSha256(val),
-		pos: pos, size: size, isDeleted: false})
+	/*	b, ok := val.([]byte)
+		if !ok {
+			return
+		} */
+	vkey := &Key{hash: utl.AsSha256(val),
+		pos: pos, size: size, isDeleted: false}
+
+	/*	_, err := utl.WriteToFile(i.fileIndexName, []byte(vkey))
+
+		if !ok {
+			return err
+		} */
+
+	i.queue.Enqueue(vkey)
 }
 
 func (i *Index) Hash(hash string) bool {

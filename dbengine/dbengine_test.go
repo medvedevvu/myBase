@@ -6,9 +6,9 @@ import (
 )
 
 func TestCreateTable(t *testing.T) {
-	myDB := NewMyDB(memory)
+	myDB := NewMyDB("workDir")
 	tdlList := []string{"Table1"}
-	err := myDB.CreateTable(tdlList)
+	err := myDB.CreateTable(tdlList, memory)
 	want := len(tdlList)
 	got := len(myDB.TblsList)
 	if want != got {
@@ -16,7 +16,7 @@ func TestCreateTable(t *testing.T) {
 	}
 
 	tdlList0 := []string{"Table1", "Table2", "Table3"}
-	err = myDB.CreateTable(tdlList0)
+	err = myDB.CreateTable(tdlList0, memory)
 	want = len([]string{"Table1", "Table2", "Table3"})
 	got = len(tdlList0)
 	if got != want {
@@ -24,7 +24,7 @@ func TestCreateTable(t *testing.T) {
 	}
 
 	tdlList1 := []string{}
-	err = myDB.CreateTable(tdlList1)
+	err = myDB.CreateTable(tdlList1, memory)
 	if err == nil {
 		t.Errorf("Добавили пустой список таблиц")
 	}
@@ -32,7 +32,7 @@ func TestCreateTable(t *testing.T) {
 	tdlList2 := []string{"Table3", "Table3"}
 	cnt := len(utl.RemoveRep(tdlList2))
 	want = len(myDB.TblsList) + cnt
-	_ = myDB.CreateTable(tdlList2)
+	_ = myDB.CreateTable(tdlList2, memory)
 	got = len(myDB.TblsList)
 	if got != want {
 		t.Errorf("Добавляем таблицы с одинаковыми именами want %d , got %d ", want, got)

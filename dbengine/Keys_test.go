@@ -6,7 +6,7 @@ import (
 )
 
 func TestIndex(t *testing.T) {
-	index := NewIndex(memory, "test")
+	index, _ := NewIndex(WorkingDir + FlSep + "test")
 	value := []byte(`test string`)
 	index.AddKey(value, 0, 0)
 	value = []byte(`test string1`)

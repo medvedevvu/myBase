@@ -12,9 +12,9 @@ import (
 type StorageTypeEnum uint8
 
 type MyDB struct {
-	Tbls        map[string]interface{}
-	TblsList    []string
-	StorageType StorageTypeEnum
+	Tbls      map[string]interface{}
+	TblsList  []string
+	dbWorkDir string
 }
 
 const (
@@ -22,12 +22,12 @@ const (
 	onDisk
 )
 
-func NewMyDB(strgType StorageTypeEnum) *MyDB {
+func NewMyDB(dbwrkdir string) *MyDB {
 	return &MyDB{Tbls: make(map[string]interface{}),
-		TblsList: []string{}, StorageType: strgType}
+		TblsList: []string{}, dbWorkDir: dbwrkdir}
 }
 
-func (c *MyDB) CreateTable(tblList []string) error {
+func (c *MyDB) CreateTable(tblList []string, ttype StorageTypeEnum) error {
 	if len(tblList) == 0 {
 		return fmt.Errorf("Пустой список таблиц")
 	}
@@ -37,17 +37,17 @@ func (c *MyDB) CreateTable(tblList []string) error {
 			c.TblsList = append(c.TblsList, tbl)
 		}
 	}
-	val := c.populateTables()
+	val := c.populateTables(ttype)
 	if len(val) > 0 {
 		return fmt.Errorf("Пропущено создание таблиц %v \n", val)
 	}
 	return nil
 }
 
-func (c *MyDB) populateTables() map[string]error {
+func (c *MyDB) populateTables(ttype StorageTypeEnum) map[string]error {
 	errMap := map[string]error{}
 	for _, tbs := range c.TblsList {
-		err := c.saveTables()
+		err := c.saveTables(ttype)
 		if err != nil {
 			errMap[tbs] = err
 			continue
@@ -58,11 +58,11 @@ func (c *MyDB) populateTables() map[string]error {
 }
 
 // здесь будем создавать таблицу с пустым ключом в памяти или ф/с
-func (c *MyDB) saveTables() error {
-	if c.StorageType == memory {
+func (c *MyDB) saveTables(ttype StorageTypeEnum) error {
+	if ttype == memory {
 		return nil
 	}
-	if c.StorageType == onDisk {
+	if ttype == onDisk {
 		return nil
 	}
 	return nil
