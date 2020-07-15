@@ -7,10 +7,10 @@ import (
 )
 
 type Key struct {
-	hash      string
-	pos       int64
-	size      int64
-	isDeleted bool
+	Hash      string
+	Pos       int64
+	Size      int64
+	IsDeleted bool
 }
 
 /*
@@ -38,8 +38,8 @@ func (i *Index) AddKey(val interface{}, pos int64, size int64) {
 		if !ok {
 			return
 		} */
-	vkey := &Key{hash: utl.AsSha256(val),
-		pos: pos, size: size, isDeleted: false}
+	vkey := &Key{Hash: utl.AsSha256(val),
+		Pos: pos, Size: size, IsDeleted: false}
 
 	/*	_, err := utl.WriteToFile(i.fileIndexName, []byte(vkey))
 

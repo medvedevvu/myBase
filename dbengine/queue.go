@@ -65,8 +65,8 @@ func (this *Queue) Peek() *Node {
 func (this *Queue) Delete(hash string) bool {
 
 	fn := func(v_tmp *Node, hash string) bool {
-		if v_tmp.Value.hash == hash {
-			v_tmp.Value.isDeleted = true
+		if v_tmp.Value.Hash == hash {
+			v_tmp.Value.IsDeleted = true
 			return true
 		} else {
 			return false
@@ -79,7 +79,7 @@ func (this *Queue) Delete(hash string) bool {
 	v_tmp := this.Peek()
 	for {
 		if v_tmp != nil {
-			if v_tmp.Value.isDeleted {
+			if v_tmp.Value.IsDeleted {
 				v_tmp = v_tmp.Next
 				continue
 			}
@@ -98,12 +98,12 @@ func (this *Queue) Update(hash string, newValue Key) bool {
 
 	fn := func(v_tmp *Node, this *Queue,
 		hash string, newValue Key) bool {
-		v_tmp.Value.isDeleted = true
+		v_tmp.Value.IsDeleted = true
 		this.Enqueue(
-			&Key{hash: hash,
-				pos:       newValue.pos,
-				size:      newValue.size,
-				isDeleted: false})
+			&Key{Hash: hash,
+				Pos:       newValue.Pos,
+				Size:      newValue.Size,
+				IsDeleted: false})
 		return true
 	}
 
@@ -115,8 +115,8 @@ func (this *Queue) Update(hash string, newValue Key) bool {
 
 	for {
 		if v_tmp != nil {
-			if v_tmp.Value.hash == hash {
-				if v_tmp.Value.isDeleted {
+			if v_tmp.Value.Hash == hash {
+				if v_tmp.Value.IsDeleted {
 					continue
 				}
 				return fn(v_tmp, this, hash, newValue)
@@ -139,12 +139,12 @@ func (this *Queue) GetKeyByHash(hash string, what_kind int) (*Key, bool) {
 	for {
 		if v_tmp != nil {
 			if what_kind == 0 {
-				if v_tmp.Value.isDeleted {
+				if v_tmp.Value.IsDeleted {
 					v_tmp = v_tmp.Next
 					continue
 				}
 			}
-			if v_tmp.Value.hash == hash {
+			if v_tmp.Value.Hash == hash {
 				return v_tmp.Value, true
 			}
 			v_tmp = v_tmp.Next
@@ -164,8 +164,8 @@ func (this *Queue) PrintAll() {
 	for {
 		if v_tmp != nil {
 			fmt.Printf("%s %d  %d  %v \n",
-				v_tmp.Value.hash, v_tmp.Value.pos,
-				v_tmp.Value.size, v_tmp.Value.isDeleted)
+				v_tmp.Value.Hash, v_tmp.Value.Pos,
+				v_tmp.Value.Size, v_tmp.Value.IsDeleted)
 			v_tmp = v_tmp.Next
 			continue
 		}

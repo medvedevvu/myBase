@@ -28,8 +28,8 @@ func TestIndex(t *testing.T) {
 
 	value = []byte(`test string222`)
 	newValue := []byte(`33333333333222`)
-	newKeyValue := Key{hash: utl.AsSha256(newValue),
-		pos: -111, size: 255, isDeleted: false}
+	newKeyValue := Key{Hash: utl.AsSha256(newValue),
+		Pos: -111, Size: 255, IsDeleted: false}
 	index.AddKey(value, 0, 0)
 	got1, ok := index.GetKeyByHash(utl.AsSha256(value), 0)
 	if !ok {
@@ -46,9 +46,9 @@ func TestIndex(t *testing.T) {
 		t.Errorf("Не найдено значение ключа для %v после обновления \n", utl.AsSha256(value))
 	}
 
-	if !(got1.hash == want1.hash &&
-		got1.pos != want1.pos &&
-		got1.size != want1.size) {
+	if !(got1.Hash == want1.Hash &&
+		got1.Pos != want1.Pos &&
+		got1.Size != want1.Size) {
 		t.Errorf("Не выполнено обновление %v  %v \n", got1, want1)
 	}
 

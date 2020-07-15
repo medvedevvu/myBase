@@ -2,41 +2,41 @@ package dbengine
 
 import (
 	"bytes"
-	"encoding/binary"
+	"encoding/gob"
 	"fmt"
-	"log"
 	utl "myBase/utl"
 	"os"
 	"testing"
 	"unsafe"
 )
 
-var want uintptr = unsafe.Sizeof(struct {
-	hash      string
-	pos       int64
-	size      int64
-	isDeleted bool
-}{utl.AsSha256([]byte(`testing data`)),
-	0, 0, false})
-
 func TestCheckStructSize(t *testing.T) {
-	temp := &Key{hash: utl.AsSha256([]byte(`test data`)),
-		pos:       0,
-		size:      10,
-		isDeleted: false}
+	want := unsafe.Sizeof(struct {
+		Hash      string
+		Pos       int64
+		Size      int64
+		IsDeleted bool
+	}{utl.AsSha256([]byte(`testing data`)),
+		0, 0, false})
+
+	temp := &Key{Hash: utl.AsSha256([]byte(`test data`)),
+		Pos:       0,
+		Size:      10,
+		IsDeleted: false}
 	got := unsafe.Sizeof(*temp)
 	if want != got {
 		t.Errorf(" ошибся с размером want = %d got=%d \n", want, got)
 	}
 }
 
+var temp = struct {
+	Hash      string
+	Pos       int64
+	Size      int64
+	IsDeleted bool
+}{utl.AsSha256([]byte(`test data test data test data`)), 0, 10, false}
+
 func TestWrieToFileAndCheckFileSize(t *testing.T) {
-	temp := struct {
-		hash      string
-		pos       int64
-		size      int64
-		isDeleted bool
-	}{utl.AsSha256([]byte(`test data`)), 0, 10, false}
 	file, err := os.Create("test_idx")
 	defer file.Close()
 	if err != nil {
@@ -48,12 +48,11 @@ func TestWrieToFileAndCheckFileSize(t *testing.T) {
 		t.Errorf("ошибка получения статистики файла %s \n", err)
 	}
 	var bin_buf bytes.Buffer
-	sz := binary.Size(temp)
-	fmt.Printf(" size %d \n", sz)
-	err = binary.Write(&bin_buf, binary.BigEndian, temp)
+	enc := gob.NewEncoder(&bin_buf)
 
+	err = enc.Encode(&temp)
 	if err != nil {
-		t.Errorf(" не смогли записать байты в буфер %s \n", err)
+		t.Errorf("encode error: %s", err)
 	}
 
 	n, err := file.Write(bin_buf.Bytes())
@@ -61,18 +60,61 @@ func TestWrieToFileAndCheckFileSize(t *testing.T) {
 		t.Errorf(" не смогли записать %s  в файл %d \n", err, n)
 	}
 	fi1, err := file.Stat()
-	if fi1.Size() != int64(want) {
+	if fi1.Size() != int64(n) {
 		t.Errorf(" пустой = %d полный=%d образец=%d ", fi.Size(),
-			fi1.Size(), int64(want))
+			fi1.Size(), int64(n))
 	}
+
 }
 
-func writeNextBytes(file *os.File, bytes []byte) {
-
-	_, err := file.Write(bytes)
-
+func TestReadFromFileAndCheckData(t *testing.T) {
+	file, err := os.Create("test_idx")
+	defer file.Close()
 	if err != nil {
-		log.Fatal(err)
+		t.Errorf(" не создал временнный файл %s \n", err)
 	}
 
+	var bin_buf bytes.Buffer
+	enc := gob.NewEncoder(&bin_buf)
+	err = enc.Encode(&temp)
+	if err != nil {
+		t.Errorf("encode error: %s", err)
+	}
+
+	n, err := file.Write(bin_buf.Bytes())
+	if err != nil || n == 0 {
+		t.Errorf(" не смогли записать %s  в файл %d байт \n", err, n)
+	}
+
+	ret, err := file.Seek(0, 0)
+	if err != nil {
+		t.Errorf(" не встали на начало %s  в файл %d байт \n", err, ret)
+	}
+
+	var bout_buf bytes.Buffer
+	tf := make([]byte, n)
+	n, err = file.Read(tf)
+	if err != nil || n == 0 {
+		t.Errorf(" не смогли прочитать %s из файла %d байт \n", err, n)
+	}
+	n, err = bout_buf.Write(tf)
+	if err != nil || n == 0 {
+		t.Errorf(" не смогли прочитать %s в буфер %d байт \n", err, n)
+	}
+
+	dec := gob.NewDecoder(&bout_buf)
+
+	var v Key
+	err = dec.Decode(&v)
+	if err != nil {
+		t.Errorf(" decode error %s :", err)
+	}
+
+	if temp.Hash != v.Hash ||
+		temp.Pos != v.Pos ||
+		temp.Size != v.Size || temp.IsDeleted != v.IsDeleted {
+		t.Errorf(" want=%v не равен got= %v \n", temp, v)
+	}
+
+	fmt.Printf(" want=%v не равен got= %v \n", temp, v)
 }
