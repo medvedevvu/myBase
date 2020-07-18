@@ -7,6 +7,7 @@ import (
 	"io"
 	utl "myBase/utl"
 	"os"
+	"reflect"
 	"testing"
 	"unsafe"
 )
@@ -165,42 +166,98 @@ func TestWriteBigDataAndReadIt(t *testing.T) {
 	value = append(value, adds...)
 	sKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
 	*/
-	var pos int64 = 0
+	//	var pos int64 = 0
 	var delta int64 = 4
-	file.Seek(0, 0)
-	for {
-		n, err := file.Seek(pos, 0)
-		if err != nil {
-			t.Errorf("ошибка %s позиционирования %d \n", err, n)
-		}
 
-		fmt.Printf(" pos=%d delta %d \n", pos, delta)
-
-		var bout_buf bytes.Buffer
-		tf := make([]byte, delta)
-		n1, err := file.Read(tf)
-
-		if err != nil || n1 == 0 {
-			if err == io.EOF {
-				break
-			}
-			t.Errorf(" не смогли прочитать %s из файла %d байт \n", err, n1)
-		}
-
-		n1, err = bout_buf.Write(tf)
-		if err != nil || n1 == 0 {
-			t.Errorf(" не смогли прочитать %s в буфер %d байт \n", err, n1)
-		}
-
-		dec := gob.NewDecoder(&bout_buf)
-		var v Key
-		err = dec.Decode(&v)
-		if err != nil {
-			t.Errorf(" decode error %s :", err)
-		}
-
-		// ----- следующие 4 байта
-		pos += delta
+	file, err = os.OpenFile(want, os.O_RDONLY, 0644)
+	if err != nil {
+		msg := fmt.Sprintf(" %s не смогли прочитать файл \n", err)
+		t.Errorf(msg)
 	}
 
+	i := 0
+	tf := make([]byte, delta)
+	//	var bout_buf bytes.Buffer
+	//	res := []byte{}
+
+	for {
+		fmt.Printf("%d   %v \n", len(tf), tf)
+		n1, err := file.Read(tf)
+		if err == io.EOF {
+			//	достигнут конец файла
+			break
+		}
+		if n1 == 0 || err != nil {
+			msg := fmt.Sprintf("не смогли прочитать %s из файла %d байт \n", err, n1)
+			t.Errorf(msg)
+		}
+		i++ // стчётчик итераций
+		if reflect.DeepEqual(tf, []byte(`\0\0`)) {
+			fmt.Printf(" stop mask  %d\n", i)
+			// формируем прочитанные данные
+			/*	n1, err = bout_buf.Write(res)
+				if err != nil || n1 == 0 {
+					t.Errorf(" не смогли прочитать %s в буфер %d байт \n", err, n1)
+				}
+				dec := gob.NewDecoder(&bout_buf)
+				var v Key
+				err = dec.Decode(&v)
+				if err != nil {
+					t.Errorf(" decode error %s :", err)
+				}
+				fmt.Printf("%v \n", v) */
+			continue
+		}
+		cnt := utl.CountEmptyBytes(tf)
+		if cnt > 0 {
+			// tf = utl.CleanEmptyByte(tf)
+			fmt.Printf(" last line of data  %d\n", i)
+		}
+		// res = append(res, tf...)
+		continue // переходим к основному циклу
+	} // tnd of loop
 }
+
+/*
+   MainLoop:
+   	for {
+   		var bout_buf bytes.Buffer
+   		tf := make([]byte, delta)
+   		res := []byte{}
+   		for {
+   			//fmt.Printf(" pos=%d delta %d \n", pos, delta)
+   			n1, err := file.ReadAt(tf, pos)
+   			fmt.Printf(" n1=%d \n", n1)
+   			if err == io.EOF {
+   				break MainLoop
+   			}
+   			if err != nil || n1 == 0 {
+   				msg := fmt.Sprintf("не смогли прочитать %s из файла %d байт \n", err, n1)
+   				t.Errorf(msg)
+   			}
+   			//fmt.Printf("---- %v --- %v ---\n", tf, []byte(`\0\0`))
+   			if reflect.DeepEqual(tf, []byte(`\0\0`)) {
+   				pos += delta
+   				break
+   			}
+   			cnt := utl.CountEmptyBytes(tf)
+   			if cnt > 0 {
+   				tf = utl.CleanEmptyByte(tf)
+   			}
+   			res = append(res, tf...)
+   			pos += delta
+   		}
+
+   		n1, err := bout_buf.Write(res)
+   		if err != nil || n1 == 0 {
+   			t.Errorf(" не смогли прочитать %s в буфер %d байт \n", err, n1)
+   		}
+
+   		dec := gob.NewDecoder(&bout_buf)
+   		var v Key
+   		err = dec.Decode(&v)
+   		if err != nil {
+   			t.Errorf(" decode error %s :", err)
+   		}
+   	}
+*/

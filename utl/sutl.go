@@ -94,3 +94,25 @@ func Set4ByteRange(bin_buf *bytes.Buffer) error {
 	}
 	return nil
 }
+
+func CountEmptyBytes(s []byte) int {
+	var tmp byte
+	var count int = 0
+	for _, a := range s {
+		if a == tmp {
+			count += 1
+		}
+	}
+	return count
+}
+
+func CleanEmptyByte(s []byte) []byte {
+	var tmp byte
+	arr := []byte{}
+	for i := 0; i < len(s); i++ {
+		if s[i] != tmp {
+			arr = append(arr, s[i])
+		}
+	}
+	return arr
+}
