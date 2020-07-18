@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"io"
 	utl "myBase/utl"
 	"os"
 	"testing"
@@ -34,10 +35,12 @@ var temp = struct {
 	Pos       int64
 	Size      int64
 	IsDeleted bool
-}{utl.AsSha256([]byte(`test data test data test data`)), 0, 10, false}
+}{utl.AsSha256([]byte(`data`)), 110, 9, false}
 
 func TestWrieToFileAndCheckFileSize(t *testing.T) {
-	file, err := os.Create("test_idx")
+	want := WorkingDir + FlSep + "test2"
+	_ = utl.ClearFiles(want)
+	file, err := os.Create(want)
 	defer file.Close()
 	if err != nil {
 		t.Errorf(" не создал временнный файл %s \n", err)
@@ -55,6 +58,17 @@ func TestWrieToFileAndCheckFileSize(t *testing.T) {
 		t.Errorf("encode error: %s", err)
 	}
 
+	l_bef := len(bin_buf.Bytes())
+	err = utl.Set4ByteRange(&bin_buf)
+	if err != nil {
+		t.Errorf(" ошибка вырвнивания %s \n", err)
+	}
+	l_after := len(bin_buf.Bytes())
+
+	if l_bef == l_after {
+		t.Errorf(" BEFORE  %d  AFTER %d \n", l_bef, l_after)
+	}
+
 	n, err := file.Write(bin_buf.Bytes())
 	if err != nil || n == 0 {
 		t.Errorf(" не смогли записать %s  в файл %d \n", err, n)
@@ -68,7 +82,9 @@ func TestWrieToFileAndCheckFileSize(t *testing.T) {
 }
 
 func TestReadFromFileAndCheckData(t *testing.T) {
-	file, err := os.Create("test_idx")
+	want := WorkingDir + FlSep + "test3"
+	_ = utl.ClearFiles(want)
+	file, err := os.Create(want)
 	defer file.Close()
 	if err != nil {
 		t.Errorf(" не создал временнный файл %s \n", err)
@@ -79,6 +95,11 @@ func TestReadFromFileAndCheckData(t *testing.T) {
 	err = enc.Encode(&temp)
 	if err != nil {
 		t.Errorf("encode error: %s", err)
+	}
+
+	err = utl.Set4ByteRange(&bin_buf)
+	if err != nil {
+		t.Errorf(" ошибка вырвнивания %s \n", err)
 	}
 
 	n, err := file.Write(bin_buf.Bytes())
@@ -101,20 +122,85 @@ func TestReadFromFileAndCheckData(t *testing.T) {
 	if err != nil || n == 0 {
 		t.Errorf(" не смогли прочитать %s в буфер %d байт \n", err, n)
 	}
-
 	dec := gob.NewDecoder(&bout_buf)
-
 	var v Key
 	err = dec.Decode(&v)
 	if err != nil {
 		t.Errorf(" decode error %s :", err)
 	}
-
 	if temp.Hash != v.Hash ||
 		temp.Pos != v.Pos ||
-		temp.Size != v.Size || temp.IsDeleted != v.IsDeleted {
+		temp.Size != v.Size ||
+		temp.IsDeleted != v.IsDeleted {
 		t.Errorf(" want=%v не равен got= %v \n", temp, v)
 	}
+	fmt.Printf(" want=%v \n got= %v \n", temp, v)
+}
 
-	fmt.Printf(" want=%v не равен got= %v \n", temp, v)
+func TestWriteBigDataAndReadIt(t *testing.T) {
+	want := WorkingDir + FlSep + "test4"
+	_ = utl.ClearFiles(want)
+	file, err := os.Create(want)
+	defer file.Close()
+	if err != nil {
+		t.Errorf(" не создал временнный файл %s \n", err)
+	}
+	for i := 0; i < 10; i++ {
+		vPos := i*10 + 1
+		vSize := i*99 + 41
+		adds := fmt.Sprintf("%d%d", vPos, vSize)
+		value := []byte(`test`)
+		value = append(value, adds...)
+		temp := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+		n, err := WriteDataToFile(file, temp)
+		if err != nil {
+			t.Errorf("ошибка %s записи в файл - байты %d \n", err, n)
+		}
+	}
+	// ----- попробуем искать
+	/*vPos := 4*10 + 1
+	vSize := 4*99 + 41
+	adds := fmt.Sprintf("%d%d", vPos, vSize)
+	value := []byte(`test`)
+	value = append(value, adds...)
+	sKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+	*/
+	var pos int64 = 0
+	var delta int64 = 4
+	file.Seek(0, 0)
+	for {
+		n, err := file.Seek(pos, 0)
+		if err != nil {
+			t.Errorf("ошибка %s позиционирования %d \n", err, n)
+		}
+
+		fmt.Printf(" pos=%d delta %d \n", pos, delta)
+
+		var bout_buf bytes.Buffer
+		tf := make([]byte, delta)
+		n1, err := file.Read(tf)
+
+		if err != nil || n1 == 0 {
+			if err == io.EOF {
+				break
+			}
+			t.Errorf(" не смогли прочитать %s из файла %d байт \n", err, n1)
+		}
+
+		n1, err = bout_buf.Write(tf)
+		if err != nil || n1 == 0 {
+			t.Errorf(" не смогли прочитать %s в буфер %d байт \n", err, n1)
+		}
+
+		dec := gob.NewDecoder(&bout_buf)
+		var v Key
+		err = dec.Decode(&v)
+		if err != nil {
+			t.Errorf(" decode error %s :", err)
+		}
+
+		// ----- следующие 4 байта
+		pos += delta
+	}
+
 }

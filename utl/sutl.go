@@ -1,9 +1,11 @@
 package utl
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 )
 
@@ -60,4 +62,35 @@ func WriteToFile(fname string, val []byte) (int64, error) {
 		return 0, err
 	}
 	return int64(n), err
+}
+
+func ClearFiles(pathFile string) error {
+	if _, err := os.Stat(pathFile); err == nil {
+		err = os.Remove(pathFile)
+		if err != nil {
+			v := pathFile
+			msg := fmt.Sprintf("ошибка %s удаления файла %s \n", err, v)
+			return errors.New(msg)
+		}
+	}
+	return nil
+}
+
+func Set4ByteRange(bin_buf *bytes.Buffer) error {
+	// буду выравнивать данные по сегментам в 4 байта а в конец
+	d := int(math.Mod(float64(bin_buf.Len()), 4))
+	if d > 0 {
+		n, err := bin_buf.Write(make([]byte, 4-d))
+		if err != nil {
+			msg := fmt.Sprintf("не выполнено выравнивание %s в %d байт \n", err, n)
+			return errors.New(msg)
+		}
+	}
+	// записывать []byte{`\0\0`} - маркер окончания данных
+	n, err := bin_buf.Write([]byte(`\0\0`))
+	if err != nil {
+		msg := fmt.Sprintf("не дописан маркер %s в %d байт \n", err, n)
+		return errors.New(msg)
+	}
+	return nil
 }
