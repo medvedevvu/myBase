@@ -80,14 +80,18 @@ func Set4ByteRange(bin_buf *bytes.Buffer) error {
 	// буду выравнивать данные по сегментам в 4 байта а в конец
 	d := int(math.Mod(float64(bin_buf.Len()), 4))
 	if d > 0 {
-		n, err := bin_buf.Write(make([]byte, 4-d))
+		vt := []byte{}
+		for i := 0; i < 4-d; i++ {
+			vt = append(vt, []byte(`+`)...)
+		}
+		n, err := bin_buf.Write(vt)
 		if err != nil {
 			msg := fmt.Sprintf("не выполнено выравнивание %s в %d байт \n", err, n)
 			return errors.New(msg)
 		}
 	}
 	// записывать []byte{`\0\0`} - маркер окончания данных
-	n, err := bin_buf.Write([]byte(`\0\0`))
+	n, err := bin_buf.Write([]byte(`\-\-`))
 	if err != nil {
 		msg := fmt.Sprintf("не дописан маркер %s в %d байт \n", err, n)
 		return errors.New(msg)
@@ -96,10 +100,10 @@ func Set4ByteRange(bin_buf *bytes.Buffer) error {
 }
 
 func CountEmptyBytes(s []byte) int {
-	var tmp byte
+	tmp := []byte(`+`)
 	var count int = 0
 	for _, a := range s {
-		if a == tmp {
+		if a == tmp[0] {
 			count += 1
 		}
 	}
@@ -107,10 +111,10 @@ func CountEmptyBytes(s []byte) int {
 }
 
 func CleanEmptyByte(s []byte) []byte {
-	var tmp byte
+	tmp := []byte(`+`)
 	arr := []byte{}
 	for i := 0; i < len(s); i++ {
-		if s[i] != tmp {
+		if s[i] != tmp[0] {
 			arr = append(arr, s[i])
 		}
 	}

@@ -133,6 +133,7 @@ func WriteDataToFile(file *os.File, temp Key) (int, error) {
 		msg := fmt.Sprintf(" ошибка вырвнивания %s \n", err)
 		return 0, errors.New(msg)
 	}
+	_, _ = file.Seek(0, 2)
 	n, err := file.Write(bin_buf.Bytes())
 	if err != nil || n == 0 {
 		msg := fmt.Sprintf("не смогли записать %s  в файл %d байт \n", err, n)
