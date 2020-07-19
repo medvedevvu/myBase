@@ -5,8 +5,10 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	utl "myBase/utl"
 	"os"
+	"reflect"
 )
 
 type Key struct {
@@ -133,11 +135,70 @@ func WriteDataToFile(file *os.File, temp Key) (int, error) {
 		msg := fmt.Sprintf(" ошибка вырвнивания %s \n", err)
 		return 0, errors.New(msg)
 	}
-	_, _ = file.Seek(0, 2)
+	//_, _ = file.Seek(0, 2)
 	n, err := file.Write(bin_buf.Bytes())
 	if err != nil || n == 0 {
 		msg := fmt.Sprintf("не смогли записать %s  в файл %d байт \n", err, n)
 		return 0, errors.New(msg)
 	}
 	return n, nil
+}
+
+func SearchInFileByKey(key Key, file *os.File) (bool, error) {
+	i := 0
+	vkey := -1
+	var delta int64 = 4
+	var bout_buf bytes.Buffer
+	res := []byte{}
+	tf := make([]byte, delta)
+	_, err := file.Seek(0, 0)
+	if err != nil {
+		msg := fmt.Sprintf(" %s не смогли прочитать файл \n", err)
+		return false, errors.New(msg)
+	}
+	for {
+		n1, err := file.Read(tf)
+		if err == io.EOF {
+			//	достигнут конец файла
+			break
+		}
+		if n1 == 0 || err != nil {
+			msg := fmt.Sprintf("не смогли прочитать %s из файла %d байт \n", err, n1)
+			return false, errors.New(msg)
+		}
+		i++ // стчётчик итераций
+		if reflect.DeepEqual(tf, []byte(`\-\-`)) {
+			// формируем прочитанные данные
+			n1, err = bout_buf.Write(res)
+			if err != nil || n1 == 0 {
+				msg := fmt.Sprintf("не смогли прочитать %s в буфер %d байт \n", err, n1)
+				return false, errors.New(msg)
+			}
+			dec := gob.NewDecoder(&bout_buf)
+			var v Key
+			err = dec.Decode(&v)
+			if err != nil {
+				msg := fmt.Sprintf("decode error %s :", err)
+				return false, errors.New(msg)
+			}
+			//fmt.Printf("%v \n", v)
+			res = nil // most importanat place !!!!!!!
+			if reflect.DeepEqual(v, key) {
+				vkey = i
+				break
+			}
+			continue
+		}
+		cnt := utl.CountEmptyBytes(tf)
+		if cnt > 0 {
+			tf1 := utl.CleanEmptyByte(tf)
+			res = append(res, tf1...)
+			continue
+		}
+		res = append(res, tf...)
+	} // end of loop
+	if vkey < 0 {
+		return false, nil
+	}
+	return true, nil
 }

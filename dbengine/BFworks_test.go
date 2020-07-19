@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"io"
 	utl "myBase/utl"
 	"os"
-	"reflect"
 	"testing"
 	"unsafe"
 )
@@ -172,57 +170,32 @@ func TestWriteBigDataAndReadIt(t *testing.T) {
 		msg := fmt.Sprintf(" %s не смогли прочитать файл \n", err)
 		t.Errorf(msg)
 	}
+	// ----- попробуем искать существующий ключ
+	ok, err := SearchInFileByKey(sKey, file)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка поиска в файле %s \n", err)
+		t.Errorf(msg)
+	}
+	if !ok {
+		msg := fmt.Sprintf(" key=%v не найден \n", sKey)
+		t.Errorf(msg)
+	}
 
-	i := 0
-	vkey := -1
-	//var delta int64 = 4
-	var bout_buf bytes.Buffer
-	res := []byte{}
-	tf := make([]byte, 4)
-
-	for {
-
-		n1, err := file.Read(tf)
-		if err == io.EOF {
-			//	достигнут конец файла
-			break
-		}
-		if n1 == 0 || err != nil {
-			msg := fmt.Sprintf("не смогли прочитать %s из файла %d байт \n", err, n1)
-			t.Errorf(msg)
-		}
-		i++ // стчётчик итераций
-		if reflect.DeepEqual(tf, []byte(`\-\-`)) {
-			// формируем прочитанные данные
-			n1, err = bout_buf.Write(res)
-			if err != nil || n1 == 0 {
-				t.Errorf(" не смогли прочитать %s в буфер %d байт \n", err, n1)
-			}
-			dec := gob.NewDecoder(&bout_buf)
-			var v Key
-			err = dec.Decode(&v)
-			if err != nil {
-				t.Errorf(" decode error %s :", err)
-			}
-			fmt.Printf("%v \n", v)
-			res = nil // most importanat place !!!!!!!
-			if reflect.DeepEqual(v, sKey) {
-				vkey = i
-				break
-			}
-			continue
-		}
-		cnt := utl.CountEmptyBytes(tf)
-		if cnt > 0 {
-			tf1 := utl.CleanEmptyByte(tf)
-			res = append(res, tf1...)
-			continue
-		}
-		res = append(res, tf...)
-	} // tnd of loop
-
-	if vkey < 0 {
-		msg := fmt.Sprintf(" key=%v не найден \n", vkey)
+	// ----- попробуем искать не существующий ключ
+	vPos = 900
+	vSize = 9
+	adds = fmt.Sprintf("%d%d", vPos, vSize)
+	value = []byte(`test`)
+	value = append(value, adds...)
+	// ключь , который ищем
+	sKey = Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+	ok, err = SearchInFileByKey(sKey, file)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка поиска в файле %s \n", err)
+		t.Errorf(msg)
+	}
+	if !ok {
+		msg := fmt.Sprintf("не существующий key=%v найден \n", sKey)
 		t.Errorf(msg)
 	}
 
