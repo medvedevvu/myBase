@@ -98,12 +98,30 @@ func (i *Index) Add(key Key) error {
 		return errors.New(msg)
 	}
 	i.queue.Enqueue(&key)
+	n, err = WriteDataToFile(file, key)
+	if err != nil || n == 0 {
+		msg := fmt.Sprintf("не прошла запись ключа %v - ошибка %s  в файл \n", key, err)
+		return errors.New(msg)
+	}
 	return nil
 }
 
 func (i *Index) Hash(key Key) bool {
+	file, err := os.Open(i.fileIndexName)
+	defer file.Close()
+	if err != nil {
+		return false
+	}
+
 	_, ok := i.queue.GetKeyByHash(key.Hash, 0)
-	return ok
+	ok1, err := SearchInFileByKey(key, file)
+	fmt.Printf("2------- %v \n", ok1)
+	if err != nil {
+		msg := fmt.Sprintf(" SearchInFileByKey  %v \n", err)
+		fmt.Printf(msg)
+		return false
+	}
+	return ok && ok1
 }
 
 func (i *Index) Delete(key Key) bool {
@@ -115,7 +133,13 @@ func (i *Index) GetKeyByHash(key Key, what_kind int) (*Key, bool) {
 }
 
 func (i *Index) Update(key Key, newKey Key) bool {
-	return i.queue.Update(key.Hash, newKey)
+	ok := i.queue.Update(key.Hash, newKey)
+	if !ok {
+	}
+	err := i.Add(newKey)
+	if err != nil {
+	}
+	return (ok == true) && (err != nil)
 }
 
 func (i *Index) PrintAll() {
@@ -181,7 +205,7 @@ func SearchInFileByKey(key Key, file *os.File) (bool, error) {
 				msg := fmt.Sprintf("decode error %s :", err)
 				return false, errors.New(msg)
 			}
-			//fmt.Printf("%v \n", v)
+			fmt.Printf("XXXXX %v \n", v)
 			res = nil // most importanat place !!!!!!!
 			if reflect.DeepEqual(v, key) {
 				vkey = i
@@ -197,6 +221,7 @@ func SearchInFileByKey(key Key, file *os.File) (bool, error) {
 		}
 		res = append(res, tf...)
 	} // end of loop
+	fmt.Printf(" vkey = %d \n", vkey)
 	if vkey < 0 {
 		return false, nil
 	}

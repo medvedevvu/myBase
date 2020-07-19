@@ -95,31 +95,26 @@ func (this *Queue) Delete(hash string) bool {
 }
 
 func (this *Queue) Update(hash string, newValue Key) bool {
-
-	fn := func(v_tmp *Node, this *Queue,
-		hash string, newValue Key) bool {
+	fn := func(v_tmp *Node, this *Queue, newValue Key) bool {
 		v_tmp.Value.IsDeleted = true
 		this.Enqueue(
-			&Key{Hash: hash,
+			&Key{Hash: newValue.Hash,
 				Pos:       newValue.Pos,
 				Size:      newValue.Size,
 				IsDeleted: false})
 		return true
 	}
-
 	if this.Len() == 0 {
 		return false
 	}
-
 	v_tmp := this.Peek()
-
 	for {
 		if v_tmp != nil {
 			if v_tmp.Value.Hash == hash {
 				if v_tmp.Value.IsDeleted {
 					continue
 				}
-				return fn(v_tmp, this, hash, newValue)
+				return fn(v_tmp, this, newValue)
 			}
 			v_tmp = v_tmp.Next
 			continue

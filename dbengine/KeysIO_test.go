@@ -1,6 +1,7 @@
 package dbengine
 
 import (
+	"fmt"
 	utl "myBase/utl"
 	"os"
 	"path/filepath"
@@ -14,6 +15,8 @@ var WorkingDir string = `c:\out` // потом возьмем у БД
 func TestCreateIndexFile(t *testing.T) {
 	var got string = WorkingDir + FlSep + "test"
 	var want string = WorkingDir + FlSep + "test_idx"
+	utl.ClearFiles(got)
+	utl.ClearFiles(want)
 	var err error
 	_, err = NewIndex(got)
 	if err != nil {
@@ -27,42 +30,98 @@ func TestCreateIndexFile(t *testing.T) {
 func TestAppendSmallDataToIndexFile(t *testing.T) {
 	got := WorkingDir + FlSep + "test1"
 	// если файл есть - удалить
-	if _, err := os.Stat(got + "_idx"); err == nil {
-		err = os.Remove(got + "_idx")
-		if err != nil {
-			v := got + "_idx"
-			t.Errorf("ошибка %s удаления файла %s \n", err, v)
-		}
-	}
+	utl.ClearFiles(got + "_idx")
 	var err error
 	Indx, err := NewIndex(got)
 	if err != nil {
 		t.Errorf(" не создан индекс %s", err)
 	}
-
 	l_hash := utl.AsSha256([]byte(`t333333333`))
-	l_size := int64(0) // int64(len([]byte(`test3`)))
+	l_size := int64(0)
 	l_pos := int64(9)
 	wantKey := Key{Hash: l_hash, Pos: l_pos, Size: l_size, IsDeleted: false}
-	Indx.Add(wantKey)
-	gotKey, ok := Indx.GetKeyByHash(wantKey, 0)
-
-	if !ok ||
-		wantKey.Hash != gotKey.Hash ||
-		wantKey.Pos != gotKey.Pos ||
-		wantKey.Size != gotKey.Size ||
-		wantKey.IsDeleted != gotKey.IsDeleted {
-		t.Errorf(" want= %v не равен got=%v \n", wantKey, gotKey)
+	err = Indx.Add(wantKey)
+	if err != nil {
+		t.Errorf("не прошло добавление ключа %v в индекс %s \n", wantKey, err)
 	}
 
+	ok := Indx.Hash(wantKey)
+	if !ok {
+		msg := fmt.Sprintf(" ключь %v не найден \n", wantKey)
+		t.Errorf(msg)
+	}
+	gotKey, ok := Indx.GetKeyByHash(wantKey, 0)
+
+	if reflect.DeepEqual(wantKey, gotKey) {
+		msg := fmt.Sprintf(" want= %v не равен got=%v \n", wantKey, gotKey)
+		t.Errorf(msg)
+	}
 	if Indx.GetLen() != 1 {
 		t.Errorf(" Key %v не добавился длина без изменений \n", gotKey)
 	}
-	key1, err := Indx.GetKey(0)
+}
+
+func TestUpdateIndexFile(t *testing.T) {
+	got := WorkingDir + FlSep + "test52"
+	// если файл есть - удалить
+	utl.ClearFiles(got + "_idx")
+	var err error
+	Indx, err := NewIndex(got)
 	if err != nil {
-		t.Errorf(" Key %v не прочитан из файла %s \n", key1, err)
+		t.Errorf(" не создан индекс %s", err)
 	}
-	if !reflect.DeepEqual(*key1, wantKey) {
-		t.Errorf("got=%v \n  want=%v \n", key1, wantKey)
+	for i := 0; i < 4; i++ {
+		vPos := i * 100
+		vSize := i
+		adds := fmt.Sprintf("%d%d", vPos, vSize)
+		value := []byte(`test`)
+		value = append(value, adds...)
+		wantKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+		err = Indx.Add(wantKey)
+		if err != nil {
+			t.Errorf("не прошло добавление ключа %v в индекс %s \n", wantKey, err)
+		}
 	}
+	vPos := 300
+	vSize := 3
+	adds := fmt.Sprintf("%d%d", vPos, vSize)
+	value := []byte(`test`)
+	value = append(value, adds...)
+	keyExist := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+
+	//keyNotExist := Key{utl.AsSha256(`12121221`), 333, 3, false}
+
+	/*	ok := Indx.Hash(keyNotExist)
+		if ok {
+			msg := fmt.Sprintf("ключ %v уже есть в базе !!! \n", keyNotExist)
+			t.Errorf(msg)
+		}*/
+
+	ok := Indx.Hash(keyExist)
+	if !ok {
+		msg := fmt.Sprintf("ключ %v нет в базе !!! %v \n", keyExist, ok)
+		t.Errorf(msg)
+	}
+
+	Indx.PrintAll()
+
+	/*
+		ok = Indx.Update(keyExist, keyNotExist)
+		fmt.Printf("1-----------------%v \n", ok)
+		if !ok {
+			msg := fmt.Sprintf("обновление %v на %v не прошло \n", keyExist, keyNotExist)
+			t.Errorf(msg)
+		}
+		ok = Indx.Hash(keyExist)
+		fmt.Printf("2-----------------%v \n", ok)
+		if ok {
+			msg := fmt.Sprintf("существующий ключ %v не удален \n", keyExist)
+			t.Errorf(msg)
+		}
+		ok = Indx.Hash(keyNotExist)
+		fmt.Printf("3-----------------%v \n", ok)
+		if !ok {
+			msg := fmt.Sprintf("новый ключ %v не добавлен \n", keyNotExist)
+			t.Errorf(msg)
+		} */
 }

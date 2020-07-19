@@ -182,20 +182,20 @@ func TestWriteBigDataAndReadIt(t *testing.T) {
 	}
 
 	// ----- попробуем искать не существующий ключ
-	vPos = 900
+	vPos = 911
 	vSize = 9
 	adds = fmt.Sprintf("%d%d", vPos, vSize)
 	value = []byte(`test`)
 	value = append(value, adds...)
 	// ключь , который ищем
-	sKey = Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
-	ok, err = SearchInFileByKey(sKey, file)
+	sKey1 := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+	ok, err = SearchInFileByKey(sKey1, file)
 	if err != nil {
 		msg := fmt.Sprintf("ошибка поиска в файле %s \n", err)
 		t.Errorf(msg)
 	}
-	if !ok {
-		msg := fmt.Sprintf("не существующий key=%v найден \n", sKey)
+	if ok {
+		msg := fmt.Sprintf("не существующий key=%v найден \n", sKey1)
 		t.Errorf(msg)
 	}
 
