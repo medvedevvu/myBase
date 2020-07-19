@@ -41,7 +41,8 @@ func AsSha256(o interface{}) string {
 Если файл существует , пробуем его открыть
 */
 func CreateFile(fname string) error {
-	f, err := os.OpenFile(fname, os.O_CREATE, 0644)
+	f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE, 0664)
+	defer f.Close()
 	if err != nil {
 		return errors.New(fmt.Sprintf(" ошибка создания открытия %s", err))
 	}
@@ -72,6 +73,14 @@ func ClearFiles(pathFile string) error {
 			msg := fmt.Sprintf("ошибка %s удаления файла %s \n", err, v)
 			return errors.New(msg)
 		}
+	}
+	return nil
+}
+func AppStopByte(bin_buf *bytes.Buffer) error {
+	n, err := bin_buf.Write([]byte(`|`))
+	if err != nil {
+		msg := fmt.Sprintf("не выполнено выравнивание %s в %d байт \n", err, n)
+		return errors.New(msg)
 	}
 	return nil
 }

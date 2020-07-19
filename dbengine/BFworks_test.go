@@ -96,7 +96,9 @@ func TestReadFromFileAndCheckData(t *testing.T) {
 		t.Errorf("encode error: %s", err)
 	}
 
-	err = utl.Set4ByteRange(&bin_buf)
+	//err = utl.Set4ByteRange(&bin_buf)
+	err = utl.AppStopByte(&bin_buf)
+
 	if err != nil {
 		t.Errorf(" ошибка вырвнивания %s \n", err)
 	}
@@ -127,13 +129,14 @@ func TestReadFromFileAndCheckData(t *testing.T) {
 	if err != nil {
 		t.Errorf(" decode error %s :", err)
 	}
+
 	if temp.Hash != v.Hash ||
 		temp.Pos != v.Pos ||
 		temp.Size != v.Size ||
 		temp.IsDeleted != v.IsDeleted {
 		t.Errorf(" want=%v не равен got= %v \n", temp, v)
 	}
-	fmt.Printf(" want=%v \n got= %v \n", temp, v)
+
 }
 
 func TestWriteBigDataAndReadIt(t *testing.T) {

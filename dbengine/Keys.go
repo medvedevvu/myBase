@@ -107,18 +107,14 @@ func (i *Index) Add(key Key) error {
 }
 
 func (i *Index) Hash(key Key) bool {
-	file, err := os.Open(i.fileIndexName)
+	file, err := os.OpenFile(i.fileIndexName, os.O_RDONLY, 0664)
 	defer file.Close()
 	if err != nil {
 		return false
 	}
-
 	_, ok := i.queue.GetKeyByHash(key.Hash, 0)
 	ok1, err := SearchInFileByKey(key, file)
-	fmt.Printf("2------- %v \n", ok1)
 	if err != nil {
-		msg := fmt.Sprintf(" SearchInFileByKey  %v \n", err)
-		fmt.Printf(msg)
 		return false
 	}
 	return ok && ok1
@@ -133,13 +129,9 @@ func (i *Index) GetKeyByHash(key Key, what_kind int) (*Key, bool) {
 }
 
 func (i *Index) Update(key Key, newKey Key) bool {
-	ok := i.queue.Update(key.Hash, newKey)
-	if !ok {
-	}
+	ok := i.queue.Delete(key.Hash)
 	err := i.Add(newKey)
-	if err != nil {
-	}
-	return (ok == true) && (err != nil)
+	return ok && (err == nil)
 }
 
 func (i *Index) PrintAll() {
@@ -154,12 +146,11 @@ func WriteDataToFile(file *os.File, temp Key) (int, error) {
 		msg := fmt.Sprintf("encode error: %s", err)
 		return 0, errors.New(msg)
 	}
-	err = utl.Set4ByteRange(&bin_buf)
+	err = utl.AppStopByte(&bin_buf)
 	if err != nil {
 		msg := fmt.Sprintf(" ошибка вырвнивания %s \n", err)
 		return 0, errors.New(msg)
 	}
-	//_, _ = file.Seek(0, 2)
 	n, err := file.Write(bin_buf.Bytes())
 	if err != nil || n == 0 {
 		msg := fmt.Sprintf("не смогли записать %s  в файл %d байт \n", err, n)
@@ -171,19 +162,16 @@ func WriteDataToFile(file *os.File, temp Key) (int, error) {
 func SearchInFileByKey(key Key, file *os.File) (bool, error) {
 	i := 0
 	vkey := -1
-	var delta int64 = 4
-	var bout_buf bytes.Buffer
-	res := []byte{}
-	tf := make([]byte, delta)
 	_, err := file.Seek(0, 0)
 	if err != nil {
 		msg := fmt.Sprintf(" %s не смогли прочитать файл \n", err)
 		return false, errors.New(msg)
 	}
+	res := []byte{}
+	tf := make([]byte, 1)
 	for {
 		n1, err := file.Read(tf)
 		if err == io.EOF {
-			//	достигнут конец файла
 			break
 		}
 		if n1 == 0 || err != nil {
@@ -191,8 +179,9 @@ func SearchInFileByKey(key Key, file *os.File) (bool, error) {
 			return false, errors.New(msg)
 		}
 		i++ // стчётчик итераций
-		if reflect.DeepEqual(tf, []byte(`\-\-`)) {
+		if reflect.DeepEqual(tf, []byte(`|`)) {
 			// формируем прочитанные данные
+			var bout_buf bytes.Buffer
 			n1, err = bout_buf.Write(res)
 			if err != nil || n1 == 0 {
 				msg := fmt.Sprintf("не смогли прочитать %s в буфер %d байт \n", err, n1)
@@ -205,23 +194,15 @@ func SearchInFileByKey(key Key, file *os.File) (bool, error) {
 				msg := fmt.Sprintf("decode error %s :", err)
 				return false, errors.New(msg)
 			}
-			fmt.Printf("XXXXX %v \n", v)
-			res = nil // most importanat place !!!!!!!
 			if reflect.DeepEqual(v, key) {
 				vkey = i
 				break
 			}
-			continue
-		}
-		cnt := utl.CountEmptyBytes(tf)
-		if cnt > 0 {
-			tf1 := utl.CleanEmptyByte(tf)
-			res = append(res, tf1...)
+			res = nil // most importanat place !!!!!!!
 			continue
 		}
 		res = append(res, tf...)
 	} // end of loop
-	fmt.Printf(" vkey = %d \n", vkey)
 	if vkey < 0 {
 		return false, nil
 	}

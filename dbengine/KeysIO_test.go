@@ -41,6 +41,7 @@ func TestAppendSmallDataToIndexFile(t *testing.T) {
 	l_pos := int64(9)
 	wantKey := Key{Hash: l_hash, Pos: l_pos, Size: l_size, IsDeleted: false}
 	err = Indx.Add(wantKey)
+
 	if err != nil {
 		t.Errorf("не прошло добавление ключа %v в индекс %s \n", wantKey, err)
 	}
@@ -70,7 +71,7 @@ func TestUpdateIndexFile(t *testing.T) {
 	if err != nil {
 		t.Errorf(" не создан индекс %s", err)
 	}
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 5; i++ {
 		vPos := i * 100
 		vSize := i
 		adds := fmt.Sprintf("%d%d", vPos, vSize)
@@ -82,20 +83,12 @@ func TestUpdateIndexFile(t *testing.T) {
 			t.Errorf("не прошло добавление ключа %v в индекс %s \n", wantKey, err)
 		}
 	}
-	vPos := 300
-	vSize := 3
+	vPos := 400
+	vSize := 4
 	adds := fmt.Sprintf("%d%d", vPos, vSize)
 	value := []byte(`test`)
 	value = append(value, adds...)
 	keyExist := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
-
-	//keyNotExist := Key{utl.AsSha256(`12121221`), 333, 3, false}
-
-	/*	ok := Indx.Hash(keyNotExist)
-		if ok {
-			msg := fmt.Sprintf("ключ %v уже есть в базе !!! \n", keyNotExist)
-			t.Errorf(msg)
-		}*/
 
 	ok := Indx.Hash(keyExist)
 	if !ok {
@@ -103,25 +96,30 @@ func TestUpdateIndexFile(t *testing.T) {
 		t.Errorf(msg)
 	}
 
-	Indx.PrintAll()
+	keyNotExist := Key{utl.AsSha256(`12121221`), 333, 3, false}
 
-	/*
-		ok = Indx.Update(keyExist, keyNotExist)
-		fmt.Printf("1-----------------%v \n", ok)
-		if !ok {
-			msg := fmt.Sprintf("обновление %v на %v не прошло \n", keyExist, keyNotExist)
-			t.Errorf(msg)
-		}
-		ok = Indx.Hash(keyExist)
-		fmt.Printf("2-----------------%v \n", ok)
-		if ok {
-			msg := fmt.Sprintf("существующий ключ %v не удален \n", keyExist)
-			t.Errorf(msg)
-		}
-		ok = Indx.Hash(keyNotExist)
-		fmt.Printf("3-----------------%v \n", ok)
-		if !ok {
-			msg := fmt.Sprintf("новый ключ %v не добавлен \n", keyNotExist)
-			t.Errorf(msg)
-		} */
+	ok = Indx.Hash(keyNotExist)
+	if ok {
+		msg := fmt.Sprintf("ключ %v уже есть в базе !!! \n", keyNotExist)
+		t.Errorf(msg)
+	}
+	ok = Indx.Update(keyExist, keyNotExist)
+
+	if !ok {
+		msg := fmt.Sprintf("обновление %v на %v не прошло \n", keyExist, keyNotExist)
+		t.Errorf(msg)
+	}
+
+	ok = Indx.Hash(keyExist)
+	if ok {
+		msg := fmt.Sprintf("существующий ключ %v не удален \n", keyExist)
+		t.Errorf(msg)
+	}
+
+	ok = Indx.Hash(keyNotExist)
+	if !ok {
+		msg := fmt.Sprintf("новый ключ %v не добавлен \n", keyNotExist)
+		t.Errorf(msg)
+	}
+
 }

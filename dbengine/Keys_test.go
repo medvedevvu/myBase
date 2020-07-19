@@ -47,15 +47,9 @@ func TestIndex(t *testing.T) {
 	if !ok {
 		t.Errorf("Не выполнена функция обновления для %v \n", key2)
 	}
-	want1, ok := index.GetKeyByHash(key1, 0)
-	if !ok {
-		t.Errorf("Не найден Key %v после обновления \n", want1)
-	}
-
-	if !(got1.Hash == want1.Hash &&
-		got1.Pos != want1.Pos &&
-		got1.Size != want1.Size) {
-		t.Errorf("Не выполнено обновление %v  %v \n", got1, want1)
+	_, ok = index.GetKeyByHash(key1, 0)
+	if ok {
+		t.Errorf("Найден Key %v после обновления \n", key1)
 	}
 
 }
