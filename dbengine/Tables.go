@@ -33,13 +33,13 @@ type Table struct {
 type MyDB struct {
 	dbWorkDir string            // рабочий каталог базы
 	TblsList  map[string]*Table // Таблицы
-	IdxList   map[string][]*Key // Ключи
+	IdxList   map[string]*Index // Ключи
 }
 
 func NewMyDB(dbwrkdir string) *MyDB {
 	lworkdir := dbwrkdir + string(filepath.Separator)
 	return &MyDB{TblsList: make(map[string]*Table),
-		IdxList: make(map[string][]*Key), dbWorkDir: lworkdir}
+		IdxList: make(map[string]*Index), dbWorkDir: lworkdir}
 }
 
 func (db *MyDB) CreateTable(tableName string, tableType StorageTypeEnum) error {
@@ -58,8 +58,9 @@ func (db *MyDB) CreateTable(tableName string, tableType StorageTypeEnum) error {
 			return errors.New(msg)
 		}
 	}
-	db.IdxList[obj+"_idx"] = append(db.IdxList[obj+"_idx"], &Key{}) // добавили индекс
-	err := utl.CreateFile(obj + "_idx")
+	midx, err := NewIndex(obj + "_idx") // создали индекс
+	db.IdxList[obj+"_idx"] = midx       // добавили индекс
+	//	err = utl.CreateFile(obj + "_idx")  // NewIndex сам создаст файл
 	if err != nil {
 		msg := fmt.Sprintf("ошибка создания файла %s \n", err)
 		return errors.New(msg)
@@ -114,8 +115,7 @@ func (db *MyDB) Add(tableName string, key Key, value []byte) bool {
 	db.TblsList[obj].Recs[key].Pos = int64(v_pos)
 	db.TblsList[obj].Recs[key].Size = int64(len(value))
 
-	// IdxList   map[string]*Key
-	//(db.IdxList[obj+"_idx"]).Add( key)
+	db.IdxList[obj+"_indx"].Add(key)
 
 	if db.TblsList[obj].Storage == onDisk {
 		// пишем в файл таблицы
