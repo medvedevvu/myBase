@@ -106,7 +106,7 @@ func (i *Index) Add(key Key) error {
 	return nil
 }
 
-func (i *Index) Hash(key Key) bool {
+func (i *Index) Has(key Key) bool {
 	file, err := os.OpenFile(i.fileIndexName, os.O_RDONLY, 0664)
 	defer file.Close()
 	if err != nil {

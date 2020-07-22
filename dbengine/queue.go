@@ -167,3 +167,22 @@ func (this *Queue) PrintAll() {
 		break
 	}
 }
+
+func (this *Queue) CountSeek(idx int64) int64 {
+	var res int64
+	if this.Len() == 0 {
+		return 0
+	}
+	v_tmp := this.Peek()
+	for {
+		if v_tmp != nil {
+			if v_tmp.Value.Pos <= idx {
+				res += v_tmp.Value.Size
+			}
+			v_tmp = v_tmp.Next
+			continue
+		}
+		break
+	}
+	return res
+}

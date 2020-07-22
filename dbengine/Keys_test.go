@@ -46,7 +46,7 @@ func TestAppendSmallDataToIndexFile(t *testing.T) {
 		t.Errorf("не прошло добавление ключа %v в индекс %s \n", wantKey, err)
 	}
 
-	ok := Indx.Hash(wantKey)
+	ok := Indx.Has(wantKey)
 	if !ok {
 		msg := fmt.Sprintf(" ключь %v не найден \n", wantKey)
 		t.Errorf(msg)
@@ -90,7 +90,7 @@ func TestUpdateIndexFile(t *testing.T) {
 	value = append(value, adds...)
 	keyExist := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
 
-	ok := Indx.Hash(keyExist)
+	ok := Indx.Has(keyExist)
 	if !ok {
 		msg := fmt.Sprintf("ключ %v нет в базе !!! %v \n", keyExist, ok)
 		t.Errorf(msg)
@@ -98,7 +98,7 @@ func TestUpdateIndexFile(t *testing.T) {
 
 	keyNotExist := Key{utl.AsSha256(`12121221`), 333, 3, false}
 
-	ok = Indx.Hash(keyNotExist)
+	ok = Indx.Has(keyNotExist)
 	if ok {
 		msg := fmt.Sprintf("ключ %v уже есть в базе !!! \n", keyNotExist)
 		t.Errorf(msg)
@@ -110,13 +110,13 @@ func TestUpdateIndexFile(t *testing.T) {
 		t.Errorf(msg)
 	}
 
-	ok = Indx.Hash(keyExist)
+	ok = Indx.Has(keyExist)
 	if ok {
 		msg := fmt.Sprintf("существующий ключ %v не удален \n", keyExist)
 		t.Errorf(msg)
 	}
 
-	ok = Indx.Hash(keyNotExist)
+	ok = Indx.Has(keyNotExist)
 	if !ok {
 		msg := fmt.Sprintf("новый ключ %v не добавлен \n", keyNotExist)
 		t.Errorf(msg)
@@ -150,7 +150,7 @@ func TestDeleteDataIndexFile(t *testing.T) {
 		}
 	}
 
-	ok := Indx.Hash(willRemove)
+	ok := Indx.Has(willRemove)
 	if !ok {
 		msg := fmt.Sprintf(" ключ %v не найден %v \n", willRemove, ok)
 		t.Errorf(msg)
@@ -162,7 +162,7 @@ func TestDeleteDataIndexFile(t *testing.T) {
 		t.Errorf(msg)
 	}
 
-	ok = Indx.Hash(willRemove)
+	ok = Indx.Has(willRemove)
 	if ok {
 		msg := fmt.Sprintf("удаленный ключ %v найден в базе %v \n", willRemove, ok)
 		t.Errorf(msg)
