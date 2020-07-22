@@ -2,17 +2,16 @@ package dbengine
 
 import (
 	"bytes"
+	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	"myBase/utl"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 )
-
-// так как можем хранить все что угодно , в качестве типа записи
-// в базе - пустой интерфейс
 
 type StorageTypeEnum uint8
 
@@ -69,6 +68,111 @@ func (db *MyDB) CreateTable(tableName string, tableType StorageTypeEnum) error {
 		return errors.New(msg)
 	}
 	db.TblsList[obj].TIndex = midx // прилепили индекс
+	return nil
+}
+func (db *MyDB) Restore() (bool, error, []string) {
+	objList := []string{}
+	objList, err := utl.OSReadDir(db.dbWorkDir)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка получения данных о структуре %s\n", err)
+		return false, errors.New(msg), nil
+	}
+	if len(objList) == 0 {
+		msg := fmt.Sprintf("не найдены объекты \n")
+		return false, errors.New(msg), nil
+	}
+	// Определимся с местом хранения таблиц
+	// если есть _idx файл , но нет table - значит таблица
+	// хранилась в памяти - восстановлению не подлежит
+	// - данные потеряны  безвозвратно - УНИЧТОЖИТЬ!!!!!
+	tbls := []string{}   // таблицы
+	indxs := []string{}  // индексы
+	recovs := []string{} // будут восстановлены
+	for _, fl := range objList {
+		if strings.HasSuffix(fl, "_idx") {
+			indxs = append(indxs, fl)
+		} else {
+			tbls = append(tbls, fl)
+		}
+	}
+mainloop:
+	for _, fl := range indxs {
+		for _, tb := range tbls {
+			if strings.TrimSuffix(fl, "_idx") == tb {
+				recovs = append(recovs, tb)
+				continue mainloop
+			}
+		}
+	}
+	// попробуем загрузить
+	log_restore := []string{}
+	for _, rec := range recovs {
+		err := db.CreateTable(rec, onDisk)
+		if err != nil {
+			msg := fmt.Sprintf("создание таблицы %s - ошибка %s", rec, err)
+			log_restore = append(log_restore, msg)
+			continue
+		}
+		t, err := db.GetTableByName(rec)
+		err = t.LoadData()
+		if err != nil {
+			msg := fmt.Sprintf("загрузка таблицы %s - ошибка %s", rec, err)
+			log_restore = append(log_restore, msg)
+			continue
+		}
+	}
+	return true, nil, log_restore
+}
+
+func (t *Table) LoadData() error {
+	// загрузим дату из проиницированных
+	file, err := os.Open(t.TIndex.fileIndexName)
+	if err != nil {
+		msg := fmt.Sprintf(" ошибка восстановления индекса \n")
+		return errors.New(msg)
+	}
+	// ---------------------
+	i := 0
+	_, err = file.Seek(0, 0)
+	if err != nil {
+		msg := fmt.Sprintf(" %s не смогли прочитать файл \n", err)
+		return errors.New(msg)
+	}
+	res := []byte{}
+	tf := make([]byte, 1)
+	for {
+		n1, err := file.Read(tf)
+		if err == io.EOF {
+			break
+		}
+		if n1 == 0 || err != nil {
+			msg := fmt.Sprintf("не смогли прочитать %s из файла %d байт \n", err, n1)
+			return errors.New(msg)
+		}
+		i++ // стчётчик итераций
+		if reflect.DeepEqual(tf, []byte(`|`)) {
+			// формируем прочитанные данные
+			var bout_buf bytes.Buffer
+			n1, err = bout_buf.Write(res)
+			if err != nil || n1 == 0 {
+				msg := fmt.Sprintf("не смогли прочитать %s в буфер %d байт \n", err, n1)
+				return errors.New(msg)
+			}
+			dec := gob.NewDecoder(&bout_buf)
+			var v Key
+			err = dec.Decode(&v)
+			if err != nil {
+				msg := fmt.Sprintf("decode error %s :", err)
+				return errors.New(msg)
+			}
+			// вставляем
+			t.TIndex.queue.Enqueue(&v)
+			res = nil // most importanat place !!!!!!!
+			continue
+		}
+		res = append(res, tf...)
+	}
+	// ---------------------
 	return nil
 }
 
@@ -161,41 +265,42 @@ func (t *Table) Add(data []byte) error {
 }
 
 func (t *Table) GetRecByKey(key Key) ([]byte, error) {
-	var out []byte
 	rkey, ok := t.TIndex.GetKeyByHash(key, 0)
 	if !ok {
 		return nil,
 			errors.New(fmt.Sprintf("данные по ключу %v не найдены \n", key))
 	}
-	if t.Storage == onDisk {
-		file, err := os.Open(strings.TrimSuffix(t.TIndex.fileIndexName, "_idx"))
-		defer file.Close()
-		if err != nil {
-			return nil,
-				errors.New(fmt.Sprintf("ошибка %s поиска на диске \n", err))
-		}
-		// определим позицию
-		cs := t.TIndex.queue.CountSeek(rkey.Pos)
-		file.Seek(cs, 0)
-		out = make([]byte, rkey.Size)
-		n, err := file.Read(out)
-		if err != nil {
-			return nil,
-				errors.New(
-					fmt.Sprintf("ошибка %s чтения даты из файла \n", err))
-		}
-		if n == 0 {
-			return nil,
-				errors.New(
-					fmt.Sprintf("прочитано даты из файла %d байт \n", n))
-		}
-	}
-	if t.Storage == onDisk {
-		if !reflect.DeepEqual(out, t.Recs[*rkey].Data) {
-			return nil,
-				errors.New(
-					fmt.Sprintf("данные в памяти не совпадают с данными в файле \n"))
-		}
-	}
 	return t.Recs[*rkey].Data, nil
+}
+
+func (t *Table) Delete(key Key) (bool, error) {
+	/* физически ничего не удаляем - затираем данные в индексе
+	   isDelete = true
+	*/
+	ok := t.TIndex.queue.Delete(key.Hash)
+	if !ok {
+		msg := "ошибка удаления из кучи"
+		return true, errors.New(msg)
+	}
+	ok = t.TIndex.Delete(key)
+	if !ok {
+		msg := "ошибка удаления из файла"
+		return true, errors.New(msg)
+	}
+	return true, nil
+}
+
+func (t *Table) Update(key Key, newValue []byte) error {
+	//добавим новый
+	err := t.Add(newValue)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка обновления %v - стадия добавления \n", err)
+		return errors.New(msg)
+	}
+	ok, err := t.Delete(key)
+	if !ok {
+		msg := fmt.Sprintf("ошибка обновления %v - стадия удаления  \n", err)
+		return errors.New(msg)
+	}
+	return nil
 }

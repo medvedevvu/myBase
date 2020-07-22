@@ -176,7 +176,7 @@ func (this *Queue) CountSeek(idx int64) int64 {
 	v_tmp := this.Peek()
 	for {
 		if v_tmp != nil {
-			if v_tmp.Value.Pos <= idx {
+			if v_tmp.Value.Pos < idx {
 				res += v_tmp.Value.Size
 			}
 			v_tmp = v_tmp.Next
