@@ -142,7 +142,8 @@ func TestReadFromFileAndCheckData(t *testing.T) {
 func TestWriteBigDataAndReadIt(t *testing.T) {
 	want := WorkingDir + FlSep + "test4"
 	_ = utl.ClearFiles(want)
-	file, err := os.OpenFile(want, os.O_APPEND|os.O_CREATE, 0664)
+	//file, err := os.OpenFile(want, os.O_APPEND|os.O_CREATE, 0664)
+	file, err := os.OpenFile(want, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 	defer file.Close()
 	if err != nil {
 		t.Errorf(" не создал временнный файл %s \n", err)
@@ -168,7 +169,7 @@ func TestWriteBigDataAndReadIt(t *testing.T) {
 	// ключь , который ищем
 	sKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
 
-	file, err = os.OpenFile(want, os.O_RDONLY, 0644)
+	file, err = os.OpenFile(want, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		msg := fmt.Sprintf(" %s не смогли прочитать файл \n", err)
 		t.Errorf(msg)

@@ -229,7 +229,7 @@ func (db *MyDB) Has(key Key) bool {
 func (t *Table) AddDataToFile(data []byte) error {
 	obj := t.TIndex.fileIndexName         // отпилю _idx с головы
 	obj = strings.TrimSuffix(obj, "_idx") // получили таблицу
-	file, err := os.OpenFile(obj, os.O_APPEND|os.O_CREATE, 0664)
+	file, err := os.OpenFile(obj, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 	defer file.Close()
 	if err != nil {
 		msg := fmt.Sprintf("файл %s не читается %s  \n", obj, err)

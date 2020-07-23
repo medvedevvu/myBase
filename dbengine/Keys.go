@@ -79,7 +79,7 @@ func NewIndex(fileIndexName string) (*Index, error) {
 }
 
 func (i *Index) Add(key Key) error {
-	file, err := os.OpenFile(i.fileIndexName, os.O_APPEND|os.O_CREATE, 0664)
+	file, err := os.OpenFile(i.fileIndexName, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 	defer file.Close()
 	if err != nil {
 		msg := fmt.Sprintf("файл %s не читается %s  \n", i.fileIndexName, err)
@@ -107,7 +107,7 @@ func (i *Index) Add(key Key) error {
 }
 
 func (i *Index) Has(key Key) bool {
-	file, err := os.OpenFile(i.fileIndexName, os.O_RDONLY, 0664)
+	file, err := os.OpenFile(i.fileIndexName, os.O_RDONLY, os.ModePerm)
 	defer file.Close()
 	if err != nil {
 		return false
