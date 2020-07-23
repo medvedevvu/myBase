@@ -65,8 +65,8 @@ func (this *Queue) Peek() *Node {
 func (this *Queue) Delete(hash string) bool {
 
 	fn := func(v_tmp *Node, hash string) bool {
-		if v_tmp.Value.hash == hash {
-			v_tmp.Value.isDeleted = true
+		if v_tmp.Value.Hash == hash {
+			v_tmp.Value.IsDeleted = true
 			return true
 		} else {
 			return false
@@ -79,7 +79,7 @@ func (this *Queue) Delete(hash string) bool {
 	v_tmp := this.Peek()
 	for {
 		if v_tmp != nil {
-			if v_tmp.Value.isDeleted {
+			if v_tmp.Value.IsDeleted {
 				v_tmp = v_tmp.Next
 				continue
 			}
@@ -95,31 +95,26 @@ func (this *Queue) Delete(hash string) bool {
 }
 
 func (this *Queue) Update(hash string, newValue Key) bool {
-
-	fn := func(v_tmp *Node, this *Queue,
-		hash string, newValue Key) bool {
-		v_tmp.Value.isDeleted = true
+	fn := func(v_tmp *Node, this *Queue, newValue Key) bool {
+		v_tmp.Value.IsDeleted = true
 		this.Enqueue(
-			&Key{hash: hash,
-				pos:       newValue.pos,
-				size:      newValue.size,
-				isDeleted: false})
+			&Key{Hash: newValue.Hash,
+				Pos:       newValue.Pos,
+				Size:      newValue.Size,
+				IsDeleted: false})
 		return true
 	}
-
 	if this.Len() == 0 {
 		return false
 	}
-
 	v_tmp := this.Peek()
-
 	for {
 		if v_tmp != nil {
-			if v_tmp.Value.hash == hash {
-				if v_tmp.Value.isDeleted {
+			if v_tmp.Value.Hash == hash {
+				if v_tmp.Value.IsDeleted {
 					continue
 				}
-				return fn(v_tmp, this, hash, newValue)
+				return fn(v_tmp, this, newValue)
 			}
 			v_tmp = v_tmp.Next
 			continue
@@ -139,12 +134,12 @@ func (this *Queue) GetKeyByHash(hash string, what_kind int) (*Key, bool) {
 	for {
 		if v_tmp != nil {
 			if what_kind == 0 {
-				if v_tmp.Value.isDeleted {
+				if v_tmp.Value.IsDeleted {
 					v_tmp = v_tmp.Next
 					continue
 				}
 			}
-			if v_tmp.Value.hash == hash {
+			if v_tmp.Value.Hash == hash {
 				return v_tmp.Value, true
 			}
 			v_tmp = v_tmp.Next
@@ -164,11 +159,30 @@ func (this *Queue) PrintAll() {
 	for {
 		if v_tmp != nil {
 			fmt.Printf("%s %d  %d  %v \n",
-				v_tmp.Value.hash, v_tmp.Value.pos,
-				v_tmp.Value.size, v_tmp.Value.isDeleted)
+				v_tmp.Value.Hash, v_tmp.Value.Pos,
+				v_tmp.Value.Size, v_tmp.Value.IsDeleted)
 			v_tmp = v_tmp.Next
 			continue
 		}
 		break
 	}
+}
+
+func (this *Queue) CountSeek(idx int64) int64 {
+	var res int64
+	if this.Len() == 0 {
+		return 0
+	}
+	v_tmp := this.Peek()
+	for {
+		if v_tmp != nil {
+			if v_tmp.Value.Pos < idx {
+				res += v_tmp.Value.Size
+			}
+			v_tmp = v_tmp.Next
+			continue
+		}
+		break
+	}
+	return res
 }
