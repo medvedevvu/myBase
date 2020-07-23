@@ -107,17 +107,8 @@ func (i *Index) Add(key Key) error {
 }
 
 func (i *Index) Has(key Key) bool {
-	file, err := os.OpenFile(i.fileIndexName, os.O_RDONLY, os.ModePerm)
-	defer file.Close()
-	if err != nil {
-		return false
-	}
 	_, ok := i.queue.GetKeyByHash(key.Hash, 0)
-	ok1, err := SearchInFileByKey(key, file)
-	if err != nil {
-		return false
-	}
-	return ok && ok1
+	return ok
 }
 
 func (i *Index) Delete(key Key) bool {

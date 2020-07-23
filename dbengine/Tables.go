@@ -13,6 +13,7 @@ import (
 	"strings"
 )
 
+type FuncForWalk func(key Key, value []byte) error
 type StorageTypeEnum uint8
 
 const (
@@ -104,6 +105,7 @@ mainloop:
 			}
 		}
 	}
+	// в recovs список таблиц у которых есть индексы
 	// попробуем загрузить
 	log_restore := []string{}
 	for _, rec := range recovs {
@@ -127,6 +129,7 @@ mainloop:
 func (t *Table) LoadData() error {
 	// загрузим дату из проиницированных
 	file, err := os.Open(t.TIndex.fileIndexName)
+	defer file.Close()
 	if err != nil {
 		msg := fmt.Sprintf(" ошибка восстановления индекса \n")
 		return errors.New(msg)
@@ -140,6 +143,8 @@ func (t *Table) LoadData() error {
 	}
 	res := []byte{}
 	tf := make([]byte, 1)
+	var seekSize int64 // смещение от начала файла
+mainLoop:
 	for {
 		n1, err := file.Read(tf)
 		if err == io.EOF {
@@ -166,13 +171,46 @@ func (t *Table) LoadData() error {
 				return errors.New(msg)
 			}
 			// вставляем
-			t.TIndex.queue.Enqueue(&v)
-			res = nil // most importanat place !!!!!!!
-			continue
+			t.TIndex.queue.Enqueue(&v) // формируем данные в памяти о индексах
+			// -- индекс есть - по неиу ищем и грузим данные в таблицу
+			// -- грузим все - даже помеченные на удаление
+			//fpos := v.Pos
+			fSize := v.Size
+			flName := strings.TrimSuffix(t.TIndex.fileIndexName, "_idx")
+			file, err := os.OpenFile(flName, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+			defer file.Close()
+			if err != nil {
+				msg := fmt.Sprintf("ошибка открытия ф-ла %s для загрузки %s\n",
+					filepath.Base(flName), err)
+				return errors.New(msg)
+			}
+			file.Seek(seekSize, 0) // сместились
+			data := make([]byte, fSize)
+			n, err := file.Read(data)
+			if err != nil {
+				msg := fmt.Sprintf("ошибка чтения %d байт из ф-ла %s для загрузки %s\n",
+					n, filepath.Base(flName), err)
+				return errors.New(msg)
+			}
+			if n == 0 {
+				msg := fmt.Sprintf("пустые данные %d байт из ф-ла %s для загрузки \n",
+					n, filepath.Base(flName))
+				return errors.New(msg)
+			}
+			key := Key{v.Hash, v.Pos, v.Size, v.IsDeleted}
+			t.Recs[key] = &Rec{v.Pos, v.Size, data}
+			err = file.Close()
+			if err != nil {
+				msg := fmt.Sprintf("ошибка закрытия ф-ла %s для загрузки %s\n",
+					filepath.Base(flName), err)
+				return errors.New(msg)
+			}
+			seekSize += fSize // добавим смещение
+			res = nil         // most importanat place !!!!!!!
+			continue mainLoop
 		}
 		res = append(res, tf...)
 	}
-	// ---------------------
 	return nil
 }
 
@@ -224,6 +262,77 @@ func (db *MyDB) Has(key Key) bool {
 		}
 	}
 	return false
+}
+
+func (db *MyDB) Walk(execFunc FuncForWalk) error {
+	for fname, idx := range db.IdxList {
+		this := idx.queue
+		v_tmp := this.Peek()
+		for {
+			if v_tmp != nil {
+				// получить список строк таблицы
+				recs := db.TblsList[strings.TrimSuffix(fname, "_idx")].Recs
+				key := Key{v_tmp.Value.Hash,
+					v_tmp.Value.Pos,
+					v_tmp.Value.Size,
+					v_tmp.Value.IsDeleted}
+				err := execFunc(key, recs[key].Data)
+				if err != nil {
+					msg := fmt.Sprintf("ошибка %s исполнения ф-ции "+
+						"с ключом %v и данными %v ", err, key, recs[key].Data)
+					return errors.New(msg)
+				}
+				v_tmp = v_tmp.Next
+				continue
+			}
+			break
+		}
+	}
+	return nil
+}
+
+func (db *MyDB) Digest() error {
+	for fname, idx := range db.IdxList {
+		this := idx.queue
+		v_tmp := this.Peek()
+		for {
+			if v_tmp != nil {
+				key := Key{v_tmp.Value.Hash,
+					v_tmp.Value.Pos,
+					v_tmp.Value.Size,
+					v_tmp.Value.IsDeleted}
+				// обегаем файл индекса если такого ключа нет добавляем
+				if !db.Has(key) {
+					err := db.IdxList[fname].Add(key)
+					if err != nil {
+						msg := fmt.Sprintf("ошибка добавления в "+
+							" файл ключа %v ", key)
+						return errors.New(msg)
+					}
+					tableName := strings.TrimSuffix(fname, "_idx")
+					tb, err := db.GetTableByName(tableName)
+					if err != nil {
+						msg := fmt.Sprintf("ошибка поиска в базе  "+
+							" таблицы %s ", tableName)
+						return errors.New(msg)
+					}
+					vdata := tb.Recs[key].Data
+					if tb.Storage == onDisk {
+						err = tb.AddDataToFile(vdata)
+						if err != nil {
+							msg := fmt.Sprintf("ошибка добавления данных %v "+
+								" в файл таблицы %s ", vdata, tableName)
+							return errors.New(msg)
+						}
+					}
+				}
+				v_tmp = v_tmp.Next
+				continue
+			}
+			break
+		}
+	}
+	return nil
 }
 
 func (t *Table) AddDataToFile(data []byte) error {
