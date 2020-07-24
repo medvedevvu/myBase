@@ -16,6 +16,7 @@ type Key struct {
 	Pos       int64
 	Size      int64
 	IsDeleted bool
+	Kbyte     string
 }
 
 /*
@@ -78,31 +79,19 @@ func NewIndex(fileIndexName string) (*Index, error) {
 		queue: &Queue{}}, nil
 }
 
-func (i *Index) Add(key Key) error {
+func (i *Index) AddDataToFile(key Key) error {
 	file, err := os.OpenFile(i.fileIndexName, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 	defer file.Close()
-	if err != nil {
-		msg := fmt.Sprintf("файл %s не читается %s  \n", i.fileIndexName, err)
-		return errors.New(msg)
-	}
-	var bin_buf bytes.Buffer
-	enc := gob.NewEncoder(&bin_buf)
-	err = enc.Encode(key)
-	if err != nil {
-		msg := fmt.Sprintf("encode error: %s", err)
-		return errors.New(msg)
-	}
-	n, err := file.Write(bin_buf.Bytes())
-	if err != nil || n == 0 {
-		msg := fmt.Sprintf("не смогли записать %s  в файл %d байт \n", err, n)
-		return errors.New(msg)
-	}
-	i.queue.Enqueue(&key)
-	n, err = WriteDataToFile(file, key)
+	n, err := WriteDataToFile(file, key)
 	if err != nil || n == 0 {
 		msg := fmt.Sprintf("не прошла запись ключа %v - ошибка %s  в файл \n", key, err)
 		return errors.New(msg)
 	}
+	return nil
+}
+
+func (i *Index) Add(key Key) error {
+	i.queue.Enqueue(&key)
 	return nil
 }
 

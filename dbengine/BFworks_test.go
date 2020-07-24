@@ -16,13 +16,15 @@ func TestCheckStructSize(t *testing.T) {
 		Pos       int64
 		Size      int64
 		IsDeleted bool
+		kbyte     string
 	}{utl.AsSha256([]byte(`testing data`)),
-		0, 0, false})
+		0, 0, false, ""})
 
 	temp := &Key{Hash: utl.AsSha256([]byte(`test data`)),
 		Pos:       0,
 		Size:      10,
-		IsDeleted: false}
+		IsDeleted: false,
+		Kbyte:     ""}
 	got := unsafe.Sizeof(*temp)
 	if want != got {
 		t.Errorf(" ошибся с размером want = %d got=%d \n", want, got)
@@ -148,26 +150,28 @@ func TestWriteBigDataAndReadIt(t *testing.T) {
 	if err != nil {
 		t.Errorf(" не создал временнный файл %s \n", err)
 	}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 3; i++ {
 		vPos := i * 100
 		vSize := i
 		adds := fmt.Sprintf("%d%d", vPos, vSize)
-		value := []byte(`test`)
+		value := []byte("test")
 		value = append(value, adds...)
-		temp := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+		temp := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false, string(value)}
 		n, err := WriteDataToFile(file, temp)
 		if err != nil {
 			t.Errorf("ошибка %s записи в файл - байты %d \n", err, n)
 		}
 	}
 	// ----- попробуем искать
-	vPos := 700
-	vSize := 7
+	file.Close()
+	file, err = os.OpenFile(want, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+	vPos := 200
+	vSize := 2
 	adds := fmt.Sprintf("%d%d", vPos, vSize)
 	value := []byte(`test`)
 	value = append(value, adds...)
 	// ключь , который ищем
-	sKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+	sKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false, string(value)}
 
 	file, err = os.OpenFile(want, os.O_RDONLY, os.ModePerm)
 	if err != nil {
@@ -192,7 +196,7 @@ func TestWriteBigDataAndReadIt(t *testing.T) {
 	value = []byte(`test`)
 	value = append(value, adds...)
 	// ключь , который ищем
-	sKey1 := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+	sKey1 := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false, string(value)}
 	ok, err = SearchInFileByKey(sKey1, file)
 	if err != nil {
 		msg := fmt.Sprintf("ошибка поиска в файле %s \n", err)
