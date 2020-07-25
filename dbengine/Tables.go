@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 type FuncForWalk func(key []byte, value []byte) error
@@ -37,6 +38,7 @@ type MyDB struct {
 	dbWorkDir string            // рабочий каталог базы
 	TblsList  map[string]*Table // Таблицы
 	IdxList   map[string]*Index // Ключи
+	mu        sync.Mutex
 }
 
 func NewMyDB(dbwrkdir string) *MyDB {
@@ -327,6 +329,37 @@ func (db *MyDB) Digest() error {
 	return nil
 }
 
+func (db *MyDB) Stop() []error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	// скинем данные на диск
+	log := []error{}
+	err := db.Digest()
+	if err != nil {
+		msg := fmt.Sprintf("ошибка записи на диск %s \n", err)
+		log = append(log, errors.New(msg))
+	}
+	// закроем все файлы
+	for _, indx := range db.IdxList {
+		file, err := os.Open(indx.fileIndexName)
+		file.Close()
+		if err != nil {
+			msg := fmt.Sprintf("ошибка %s закрытия индекса %s \n",
+				err, indx.fileIndexName)
+			log = append(log, errors.New(msg))
+		}
+		tabName := strings.TrimSuffix(indx.fileIndexName, "_idx")
+		file, err = os.Open(tabName)
+		file.Close()
+		if err != nil {
+			msg := fmt.Sprintf("ошибка %s закрытия таблицы %s \n",
+				err, tabName)
+			log = append(log, errors.New(msg))
+		}
+	}
+	return nil
+}
+
 func (t *Table) AddDataToFile(data []byte) error {
 	obj := t.TIndex.fileIndexName         // отпилю _idx с головы
 	obj = strings.TrimSuffix(obj, "_idx") // получили таблицу
@@ -414,4 +447,27 @@ func (t *Table) Update(key []byte, newValue []byte) error {
 		return errors.New(msg)
 	}
 	return nil
+}
+
+func (db *MyDB) PrintDB() {
+	for fname, idx := range db.IdxList {
+		this := idx.queue
+		v_tmp := this.Peek()
+		fmt.Printf("таблица %s \n", strings.TrimSuffix(fname, "_idx"))
+		for {
+			if v_tmp != nil {
+				// получить список строк таблицы
+				recs := db.TblsList[strings.TrimSuffix(fname, "_idx")].Recs
+				key := Key{v_tmp.Value.Hash,
+					v_tmp.Value.Pos,
+					v_tmp.Value.Size, v_tmp.Value.IsDeleted,
+					v_tmp.Value.Kbyte}
+				s := string(recs[key].Data)
+				fmt.Printf("Строка %d  %s\n", v_tmp.Value.Pos, s)
+				v_tmp = v_tmp.Next
+				continue
+			}
+			break
+		}
+	}
 }
