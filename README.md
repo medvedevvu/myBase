@@ -1,4 +1,7 @@
 # myBase
 Easy database
-part 3
+part 4
+
+thread safe
+
 
