@@ -32,6 +32,7 @@ type Table struct {
 	Storage StorageTypeEnum
 	Recs    map[Key]*Rec
 	TIndex  *Index
+	mu      sync.RWMutex
 }
 
 type MyDB struct {
@@ -54,9 +55,9 @@ func (db *MyDB) CreateTable(tableName string, tableType StorageTypeEnum) error {
 		msg := fmt.Sprintf("Tаблица %s уже есть в базе \n", tableName)
 		return errors.New(msg)
 	}
-	db.TblsList[obj] = &Table{0, make(map[Key]*Rec), &Index{}} // добавили таблицу
-	db.TblsList[obj].Storage = tableType                       // проставили тип хранилища
-	if tableType == onDisk {                                   // на диске создаем
+	db.TblsList[obj] = &Table{0, make(map[Key]*Rec), &Index{}, sync.RWMutex{}} // добавили таблицу
+	db.TblsList[obj].Storage = tableType                                       // проставили тип хранилища
+	if tableType == onDisk {                                                   // на диске создаем
 		err := utl.CreateFile(obj)
 		if err != nil {
 			msg := fmt.Sprintf("ошибка создания файла %s \n", err)
@@ -390,21 +391,37 @@ func (db *MyDB) Has(key []byte) bool {
 }
 
 func (t *Table) Add(key []byte, data []byte) error {
-	if t.TIndex.Has(Key{utl.AsSha256(key), 0, 0, false, string(key)}) {
-		msg := fmt.Sprintf(" такой ключ уже есть в базе %v \n",
-			utl.AsSha256(key))
-		return errors.New(msg)
-	}
-	pos := len(t.Recs)
-	lkey := Key{utl.AsSha256(key), int64(pos), int64(len(data)), false, string(key)}
-	rec := &Rec{Pos: int64(pos), Size: int64(len(data)), Data: data}
-	t.Recs[lkey] = rec
+	var vkey Key
+	errMain := func() error {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		pos := len(t.Recs)
+		//lkey := Key{utl.AsSha256(key), int64(pos), int64(len(data)), false, string(key)}
+		vkey = Key{utl.AsSha256(key), int64(pos), int64(len(data)), false, string(key)}
+		rec := &Rec{Pos: int64(pos), Size: int64(len(data)), Data: data}
+		r := t.TIndex.Has(vkey)
+		if r {
+			msg := fmt.Sprintf(" такой ключ уже есть в базе %v \n",
+				utl.AsSha256(key))
+			return errors.New(msg)
+		}
+		t.Recs[vkey] = rec
+		return nil
+	}()
 	// теперь надо записать в индекс
-	err := t.TIndex.Add(lkey)
-	if err != nil {
-		return errors.New(fmt.Sprintf(" ошибка индекса %s \n", err))
+	if errMain != nil {
+		return errMain
 	}
-	return nil
+	errMain = func() error {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		err := t.TIndex.Add(vkey)
+		if err != nil {
+			return errors.New(fmt.Sprintf(" ошибка индекса %s \n", err))
+		}
+		return nil
+	}()
+	return errMain
 }
 
 func (t *Table) GetRecByKey(key Key) ([]byte, error) {
@@ -420,13 +437,10 @@ func (t *Table) Delete(key []byte) (bool, error) {
 	/* физически ничего не удаляем - затираем данные в индексе
 	   isDelete = true
 	*/
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	lkey := Key{utl.AsSha256(key), 0, 0, false, ""}
-	ok := t.TIndex.queue.Delete(lkey.Hash)
-	if !ok {
-		msg := "ошибка удаления из кучи"
-		return true, errors.New(msg)
-	}
-	ok = t.TIndex.Delete(lkey)
+	ok := t.TIndex.Delete(lkey)
 	if !ok {
 		msg := "ошибка удаления из файла"
 		return true, errors.New(msg)
