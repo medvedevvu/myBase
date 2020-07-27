@@ -1,6 +1,8 @@
 package dbengine
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type (
 	Queue struct {
@@ -20,6 +22,7 @@ func New() *Queue {
 
 // Снять следующий предмет с начала очереди
 func (this *Queue) Dequeue() *Key {
+
 	if this.Length == 0 {
 		return nil
 	}
@@ -36,6 +39,7 @@ func (this *Queue) Dequeue() *Key {
 
 // Добавление элемента к хвосту очереди
 func (this *Queue) Enqueue(value *Key) {
+
 	n := &Node{value, nil}
 	if this.Length == 0 {
 		this.Start = n
@@ -54,6 +58,7 @@ func (this *Queue) Len() int {
 
 // Первый элемент в очереди без его удаления
 func (this *Queue) Peek() *Node {
+
 	if this.Length == 0 {
 		return nil
 	}
@@ -127,6 +132,7 @@ func (this *Queue) Update(hash string, newValue Key) bool {
 func (this *Queue) GetKeyByHash(hash string, what_kind int) (*Key, bool) {
 	// what_kind = 0  только живых
 	// what_kind = 1  всех
+
 	if this.Len() == 0 {
 		return nil, false
 	}

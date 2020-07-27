@@ -9,6 +9,7 @@ import (
 	utl "myBase/utl"
 	"os"
 	"reflect"
+	"sync"
 )
 
 type Key struct {
@@ -27,6 +28,7 @@ type Key struct {
 type Index struct {
 	fileIndexName string // имя индекса , имя файла имя_idx
 	queue         *Queue // очередь индекса
+	mu            sync.Mutex
 }
 
 func (i Index) GetLen() int {
@@ -76,7 +78,7 @@ func NewIndex(fileIndexName string) (*Index, error) {
 			fileIndexName+"_idx -- ошибка: %s", err))
 	}
 	return &Index{fileIndexName: fileIndexName + "_idx",
-		queue: &Queue{}}, nil
+		queue: &Queue{}, mu: sync.Mutex{}}, nil
 }
 
 func (i *Index) AddDataToFile(key Key) error {
