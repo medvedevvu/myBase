@@ -1,9 +1,5 @@
 package dbengine
 
-import (
-	"fmt"
-)
-
 type (
 	Queue struct {
 		Start, End *Node
@@ -156,7 +152,7 @@ func (this *Queue) GetKeyByHash(hash string, what_kind int) (*Key, bool) {
 	return nil, false
 }
 
-func (this *Queue) PrintAll() {
+/*func (this *Queue) PrintAll() {
 	if this.Len() == 0 {
 		fmt.Println("Пустая очередь ")
 		return
@@ -172,7 +168,7 @@ func (this *Queue) PrintAll() {
 		}
 		break
 	}
-}
+}*/
 
 func (this *Queue) CountSeek(idx int64) int64 {
 	var res int64

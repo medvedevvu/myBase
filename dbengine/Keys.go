@@ -1,23 +1,11 @@
 package dbengine
 
-import (
-	"bytes"
-	"encoding/gob"
-	"errors"
-	"fmt"
-	"io"
-	utl "myBase/utl"
-	"os"
-	"reflect"
-	"sync"
-)
-
 type Key struct {
-	Hash      string
+	Hash string
+	//TKey      []byte // ключ из таблицы
 	Pos       int64
 	Size      int64
 	IsDeleted bool
-	Kbyte     string
 }
 
 /*
@@ -27,10 +15,10 @@ type Key struct {
 
 type Index struct {
 	fileIndexName string // имя индекса , имя файла имя_idx
-	queue         *Queue // очередь индекса
-	mu            sync.Mutex
+	Keys          map[string]*Key
 }
 
+/*
 func (i Index) GetLen() int {
 	return i.queue.Length
 }
@@ -81,6 +69,7 @@ func NewIndex(fileIndexName string) (*Index, error) {
 		queue: &Queue{}, mu: sync.Mutex{}}, nil
 }
 
+/*
 func (i *Index) AddDataToFile(key Key) error {
 	file, err := os.OpenFile(i.fileIndexName, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 	defer file.Close()
@@ -96,6 +85,7 @@ func (i *Index) Add(key Key) error {
 	i.queue.Enqueue(&key)
 	return nil
 }
+
 
 func (i *Index) Has(key Key) bool {
 	_, ok := i.queue.GetKeyByHash(key.Hash, 0)
@@ -190,3 +180,4 @@ func SearchInFileByKey(key Key, file *os.File) (bool, error) {
 	}
 	return true, nil
 }
+*/
