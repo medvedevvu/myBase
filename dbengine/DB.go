@@ -26,7 +26,8 @@ func (db *MyDB) CreateTable(tableName string, tableType StorageTypeEnum) error {
 		return errors.New(msg)
 	}
 	tb := &Table{0, make(map[string]*Rec),
-		&Index{"", make(map[string]*Key)}, tableName}
+		&Index{"", make(map[string]*Key),
+			make(map[int64]string)}, tableName}
 	db.TblsList[obj] = tb                // добавили таблицу
 	db.TblsList[obj].Storage = tableType // проставили тип хранилища
 	db.IdxList[obj+"_idx"] = &Index{tableName + "_idx",
@@ -34,31 +35,32 @@ func (db *MyDB) CreateTable(tableName string, tableType StorageTypeEnum) error {
 	return nil
 }
 
-/*
 func (db *MyDB) Walk(execFunc FuncForWalk) error {
-	for fname, idx := range db.IdxList {
-		this := idx.queue
-		v_tmp := this.Peek()
-		for {
-			if v_tmp != nil {
-				// получить список строк таблицы
-				recs := db.TblsList[strings.TrimSuffix(fname, "_idx")].Recs
-				key := Key{v_tmp.Value.Hash,
-					v_tmp.Value.Pos,
-					v_tmp.Value.Size,
-					v_tmp.Value.IsDeleted, v_tmp.Value.Kbyte}
-				err := execFunc([]byte(key.Kbyte), recs[key].Data)
+	for _, table := range db.TblsList { // все таблицы БД
+		for key, rec := range table.Recs { // записи в таблице
+			if table.Has([]byte(key)) { // удалена или нет
+				err := execFunc([]byte(key), rec.Data)
 				if err != nil {
-					msg := fmt.Sprintf("ошибка %s исполнения ф-ции "+
-						"с ключом %v и данными %v ", err, key, recs[key].Data)
+					msg := fmt.Sprintf("ошибка исполнения ф-ции %s", err)
 					return errors.New(msg)
 				}
-				v_tmp = v_tmp.Next
-				continue
 			}
-			break
 		}
 	}
 	return nil
 }
+
+/*
+после начала работы , через некоторое время записываем данные на диск
 */
+func (db *MyDB) Digest() []error {
+	log := []error{}
+	for _, table := range db.TblsList { // обегаем все таблицы
+		err := table.SaveItselfToDisk() //
+		if err != nil {
+			msg := fmt.Sprintf("индекс таблицы %s не сохранилася %s ", err)
+			log = append(log, errors.New(msg))
+		}
+	}
+	return log
+}
