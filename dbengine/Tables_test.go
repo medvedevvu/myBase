@@ -1,55 +1,174 @@
 package dbengine
 
 import (
+	"errors"
 	"fmt"
-	"myBase/utl"
+	"reflect"
 	"testing"
 )
 
-func TestCreateTable(t *testing.T) {
-	sstype := onDisk
-	myBase := NewMyDB(WorkingDir)
-	utl.ClearDir(myBase.dbWorkDir, false)
-	tableName := "table1"
-	err := myBase.CreateTable(tableName, sstype)
-	if err != nil {
-		msg := fmt.Sprintf("Ошибка создания таблицы %v \n", err)
-		t.Errorf(msg)
-	}
+var WorkingDir string = `c:\out` // потом возьмем у БД
 
-	_, err = myBase.GetTableByName(tableName)
+func TempDb() *MyDB {
+	db := NewMyDB(WorkingDir)
+	return db
+}
+
+func TempDbAndSmallTable(tableName string) (*MyDB, error) {
+	db := NewMyDB(WorkingDir)
+	err := db.CreateTable(tableName, memory)
 	if err != nil {
-		msg := fmt.Sprintf("Tаблицы %s нет в базе \n", tableName)
-		t.Errorf(msg)
+		msg := fmt.Sprintf("ошибка создания таблицы %s \n", err)
+		return nil, errors.New(msg)
 	}
-	// создадим одноименную таблицу ещё раз
-	err = myBase.CreateTable(tableName, sstype)
+	return db, nil
+}
+
+func TestCreateTabel(t *testing.T) {
+	db := TempDb()
+	err := db.CreateTable("table1", memory)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка создания таблицы %s \n", err)
+		t.Error(errors.New(msg))
+	}
+	_, err = db.GetTableByName("table1")
+	if err != nil {
+		msg := fmt.Sprintf("ошибка чтения таблицы %s \n", err)
+		t.Error(errors.New(msg))
+	}
+	_, err = db.GetTableByName("table2")
 	if err == nil {
-		msg := fmt.Sprintf("Tаблицa %s уже есть в базе  %s \n", tableName, err)
-		t.Errorf(msg)
+		msg := fmt.Sprintf("таблицы %s нет в базе \n", "table2")
+		t.Error(errors.New(msg))
 	}
-	tbl, err := myBase.GetTableFileByName(tableName)
-	if err != nil {
-		msg := fmt.Sprintf("Ошибка поиска таблицы %s -- %s \n",
-			tbl, err)
-		t.Errorf(msg)
-	}
+}
 
-	_, ok := myBase.IdxList[tbl+"_idx"]
-	if !ok {
-		if tbl != "memory" {
-			msg := fmt.Sprintf("Индекса %s для таблицы %s нет в базе \n",
-				tbl+"_idx", tableName)
-			t.Errorf(msg)
+func TestAdd(t *testing.T) {
+	tableName := "table1"
+	db, err := TempDbAndSmallTable(tableName)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка создания БД с таблицей %s \n", tableName)
+		t.Error(errors.New(msg))
+	}
+	tbl, err := db.GetTableByName(tableName)
+	if err != nil {
+		msg := fmt.Sprintf("таблицы %s нет в базе \n", tableName)
+		t.Error(errors.New(msg))
+	}
+	tKey := []byte(`key1`)
+	tValue := []byte(`value value`)
+	err = tbl.Add(tKey, tValue)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка добавления key=%v value=%v \n", tKey, tValue)
+		t.Error(errors.New(msg))
+	}
+	vbyte, err := tbl.GetValByKey(tKey)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка %s получения значения по key=%v \n", err, tKey)
+		t.Error(errors.New(msg))
+	}
+	if !reflect.DeepEqual(tValue, vbyte) {
+		msg := fmt.Sprintf(" want=%v  got=%v \n", tValue, vbyte)
+		t.Error(errors.New(msg))
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	newValue := []byte(`111`) // для обновления
+	tableName := "table1"
+	db, err := TempDbAndSmallTable(tableName)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка создания БД с таблицей %s \n", tableName)
+		t.Error(errors.New(msg))
+	}
+	tbl, err := db.GetTableByName(tableName)
+	if err != nil {
+		msg := fmt.Sprintf("таблицы %s нет в базе \n", "table2")
+		t.Error(errors.New(msg))
+	}
+	for i := 0; i < 10; i++ {
+		tKey := []byte(`key`)
+		tKey = append(tKey, []byte(fmt.Sprintf("%d", i))...)
+		tValue := []byte(`valuevalue`)
+		tValue = append(tValue, []byte(fmt.Sprintf("%d", i))...)
+		err = tbl.Add(tKey, tValue)
+		if err != nil {
+			msg := fmt.Sprintf("ошибка добавления key=%v value=%v \n", tKey, tValue)
+			t.Error(errors.New(msg))
 		}
 	}
-	// так как добавили всего одну таблицу , то и индекс должен быть 1
-	got := len(myBase.IdxList)
-	want := 1
-	if got != want {
-		msg := fmt.Sprintf("Индексов должно быть %d а получили %d \n",
-			want, got)
-		t.Errorf(msg)
+	for i := 0; i < 10; i++ {
+		tKey := []byte(`key`)
+		tKey = append(tKey, []byte(fmt.Sprintf("%d", i))...)
+		val, err := tbl.GetValByKey(tKey)
+		if err != nil {
+			msg := fmt.Sprintf("ошибка поиска по ключу key=%v value=%v \n",
+				tKey, val)
+			t.Error(errors.New(msg))
+		}
+		err = tbl.Update(tKey, newValue)
+		if err != nil {
+			msg := fmt.Sprintf("ошибка обновления по ключу key=%v value=%v \n",
+				tKey, newValue)
+			t.Error(errors.New(msg))
+		}
 	}
+	for i := 0; i < 10; i++ {
+		tKey := []byte(`key`)
+		tKey = append(tKey, []byte(fmt.Sprintf("%d", i))...)
+		val, err := tbl.GetValByKey(tKey)
+		if err != nil {
+			msg := fmt.Sprintf("ошибка поиска по ключу key=%v value=%v \n",
+				tKey, val)
+			t.Error(errors.New(msg))
+		}
+		if !reflect.DeepEqual(val, newValue) {
+			msg := fmt.Sprintf("не выполнено обновление"+
+				"по ключу key=%v value=%v \n", tKey, val)
+			t.Error(errors.New(msg))
+		}
+	}
+}
 
+func TestDelete(t *testing.T) {
+	tableName := "table1"
+	db, err := TempDbAndSmallTable(tableName)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка создания БД с таблицей %s \n", tableName)
+		t.Error(errors.New(msg))
+	}
+	tbl, err := db.GetTableByName(tableName)
+	if err != nil {
+		msg := fmt.Sprintf("таблицы %s нет в базе \n", "table2")
+		t.Error(errors.New(msg))
+	}
+	for i := 0; i < 10; i++ {
+		tKey := []byte(`key`)
+		tKey = append(tKey, []byte(fmt.Sprintf("%d", i))...)
+		tValue := []byte(`valuevalue`)
+		tValue = append(tValue, []byte(fmt.Sprintf("%d", i))...)
+		err = tbl.Add(tKey, tValue)
+		if err != nil {
+			msg := fmt.Sprintf("ошибка добавления key=%v value=%v \n", tKey, tValue)
+			t.Error(errors.New(msg))
+		}
+	}
+	for i := 9; i < 0; i-- {
+		tKey := []byte(`key`)
+		tKey = append(tKey, []byte(fmt.Sprintf("%d", i))...)
+		ok := tbl.Delete(tKey)
+		if !ok {
+			msg := fmt.Sprintf("ошибка удаления key=%v \n", tKey)
+			t.Error(errors.New(msg))
+		}
+	}
+	for i := 9; i < 0; i-- {
+		tKey := []byte(`key`)
+		tKey = append(tKey, []byte(fmt.Sprintf("%d", i))...)
+		ok := tbl.Has(tKey)
+		if !ok {
+			msg := fmt.Sprintf("найден удаленный ключ key=%v \n", tKey)
+			t.Error(errors.New(msg))
+		}
+	}
 }

@@ -40,6 +40,15 @@ func AsSha256(o interface{}) string {
 /*
 Если файл существует , пробуем его открыть
 */
+
+func GetFile(fname string) (*os.File, error) {
+	f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf(" ошибка открытия файла %s", err))
+	}
+	return f, nil
+}
+
 func CreateFile(fname string) error {
 	f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_RDWR, os.ModePerm)
 	defer f.Close()
