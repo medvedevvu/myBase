@@ -11,9 +11,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 )
 
-type FuncForWalk func(key Key, value []byte) error
+type FuncForWalk func(key []byte, value []byte) error
 type StorageTypeEnum uint8
 
 const (
@@ -37,6 +38,7 @@ type MyDB struct {
 	dbWorkDir string            // рабочий каталог базы
 	TblsList  map[string]*Table // Таблицы
 	IdxList   map[string]*Index // Ключи
+	mu        sync.Mutex
 }
 
 func NewMyDB(dbwrkdir string) *MyDB {
@@ -197,7 +199,7 @@ mainLoop:
 					n, filepath.Base(flName))
 				return errors.New(msg)
 			}
-			key := Key{v.Hash, v.Pos, v.Size, v.IsDeleted}
+			key := Key{v.Hash, v.Pos, v.Size, v.IsDeleted, v.Kbyte}
 			t.Recs[key] = &Rec{v.Pos, v.Size, data}
 			err = file.Close()
 			if err != nil {
@@ -255,15 +257,6 @@ func (db *MyDB) GetTableIndexFileByName(tableName string) (string, error) {
 	return "", errors.New(fmt.Sprintf("файл индекса %s_idx не найден \n ", tableName))
 }
 
-func (db *MyDB) Has(key Key) bool {
-	for _, idxKey := range db.IdxList {
-		if idxKey.Has(key) {
-			return true
-		}
-	}
-	return false
-}
-
 func (db *MyDB) Walk(execFunc FuncForWalk) error {
 	for fname, idx := range db.IdxList {
 		this := idx.queue
@@ -275,8 +268,8 @@ func (db *MyDB) Walk(execFunc FuncForWalk) error {
 				key := Key{v_tmp.Value.Hash,
 					v_tmp.Value.Pos,
 					v_tmp.Value.Size,
-					v_tmp.Value.IsDeleted}
-				err := execFunc(key, recs[key].Data)
+					v_tmp.Value.IsDeleted, v_tmp.Value.Kbyte}
+				err := execFunc([]byte(key.Kbyte), recs[key].Data)
 				if err != nil {
 					msg := fmt.Sprintf("ошибка %s исполнения ф-ции "+
 						"с ключом %v и данными %v ", err, key, recs[key].Data)
@@ -300,16 +293,17 @@ func (db *MyDB) Digest() error {
 				key := Key{v_tmp.Value.Hash,
 					v_tmp.Value.Pos,
 					v_tmp.Value.Size,
-					v_tmp.Value.IsDeleted}
+					v_tmp.Value.IsDeleted, v_tmp.Value.Kbyte}
 				// обегаем файл индекса если такого ключа нет добавляем
-				if !db.Has(key) {
-					err := db.IdxList[fname].Add(key)
+				if db.Has([]byte(key.Kbyte)) {
+					err := db.IdxList[fname].AddDataToFile(key)
 					if err != nil {
 						msg := fmt.Sprintf("ошибка добавления в "+
 							" файл ключа %v ", key)
 						return errors.New(msg)
 					}
 					tableName := strings.TrimSuffix(fname, "_idx")
+					tableName = filepath.Base(tableName)
 					tb, err := db.GetTableByName(tableName)
 					if err != nil {
 						msg := fmt.Sprintf("ошибка поиска в базе  "+
@@ -335,6 +329,37 @@ func (db *MyDB) Digest() error {
 	return nil
 }
 
+func (db *MyDB) Stop() []error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	// скинем данные на диск
+	log := []error{}
+	err := db.Digest()
+	if err != nil {
+		msg := fmt.Sprintf("ошибка записи на диск %s \n", err)
+		log = append(log, errors.New(msg))
+	}
+	// закроем все файлы
+	for _, indx := range db.IdxList {
+		file, err := os.Open(indx.fileIndexName)
+		file.Close()
+		if err != nil {
+			msg := fmt.Sprintf("ошибка %s закрытия индекса %s \n",
+				err, indx.fileIndexName)
+			log = append(log, errors.New(msg))
+		}
+		tabName := strings.TrimSuffix(indx.fileIndexName, "_idx")
+		file, err = os.Open(tabName)
+		file.Close()
+		if err != nil {
+			msg := fmt.Sprintf("ошибка %s закрытия таблицы %s \n",
+				err, tabName)
+			log = append(log, errors.New(msg))
+		}
+	}
+	return nil
+}
+
 func (t *Table) AddDataToFile(data []byte) error {
 	obj := t.TIndex.fileIndexName         // отпилю _idx с головы
 	obj = strings.TrimSuffix(obj, "_idx") // получили таблицу
@@ -354,19 +379,28 @@ func (t *Table) AddDataToFile(data []byte) error {
 	return nil
 }
 
-func (t *Table) Add(data []byte) error {
-	pos := len(t.Recs)
-	key := Key{utl.AsSha256(data), int64(pos), int64(len(data)), false}
-	rec := &Rec{Pos: int64(pos), Size: int64(len(data)), Data: data}
-	t.Recs[key] = rec
-	if t.Storage == onDisk {
-		err := t.AddDataToFile(data)
-		if err != nil {
-			return errors.New(fmt.Sprintf("ошибка записи в файл таблицы %s \n", err))
+func (db *MyDB) Has(key []byte) bool {
+	vkey := Key{utl.AsSha256(key), 0, 0, false, ""}
+	for _, idxKey := range db.IdxList {
+		if idxKey.Has(vkey) {
+			return true
 		}
 	}
+	return false
+}
+
+func (t *Table) Add(key []byte, data []byte) error {
+	if t.TIndex.Has(Key{utl.AsSha256(key), 0, 0, false, string(key)}) {
+		msg := fmt.Sprintf(" такой ключ уже есть в базе %v \n",
+			utl.AsSha256(key))
+		return errors.New(msg)
+	}
+	pos := len(t.Recs)
+	lkey := Key{utl.AsSha256(key), int64(pos), int64(len(data)), false, string(key)}
+	rec := &Rec{Pos: int64(pos), Size: int64(len(data)), Data: data}
+	t.Recs[lkey] = rec
 	// теперь надо записать в индекс
-	err := t.TIndex.Add(key)
+	err := t.TIndex.Add(lkey)
 	if err != nil {
 		return errors.New(fmt.Sprintf(" ошибка индекса %s \n", err))
 	}
@@ -382,16 +416,17 @@ func (t *Table) GetRecByKey(key Key) ([]byte, error) {
 	return t.Recs[*rkey].Data, nil
 }
 
-func (t *Table) Delete(key Key) (bool, error) {
+func (t *Table) Delete(key []byte) (bool, error) {
 	/* физически ничего не удаляем - затираем данные в индексе
 	   isDelete = true
 	*/
-	ok := t.TIndex.queue.Delete(key.Hash)
+	lkey := Key{utl.AsSha256(key), 0, 0, false, ""}
+	ok := t.TIndex.queue.Delete(lkey.Hash)
 	if !ok {
 		msg := "ошибка удаления из кучи"
 		return true, errors.New(msg)
 	}
-	ok = t.TIndex.Delete(key)
+	ok = t.TIndex.Delete(lkey)
 	if !ok {
 		msg := "ошибка удаления из файла"
 		return true, errors.New(msg)
@@ -399,17 +434,40 @@ func (t *Table) Delete(key Key) (bool, error) {
 	return true, nil
 }
 
-func (t *Table) Update(key Key, newValue []byte) error {
+func (t *Table) Update(key []byte, newValue []byte) error {
 	//добавим новый
-	err := t.Add(newValue)
-	if err != nil {
-		msg := fmt.Sprintf("ошибка обновления %v - стадия добавления \n", err)
-		return errors.New(msg)
-	}
 	ok, err := t.Delete(key)
 	if !ok {
 		msg := fmt.Sprintf("ошибка обновления %v - стадия удаления  \n", err)
 		return errors.New(msg)
 	}
+	err = t.Add(key, newValue)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка обновления %v - стадия добавления \n", err)
+		return errors.New(msg)
+	}
 	return nil
+}
+
+func (db *MyDB) PrintDB() {
+	for fname, idx := range db.IdxList {
+		this := idx.queue
+		v_tmp := this.Peek()
+		fmt.Printf("таблица %s \n", strings.TrimSuffix(fname, "_idx"))
+		for {
+			if v_tmp != nil {
+				// получить список строк таблицы
+				recs := db.TblsList[strings.TrimSuffix(fname, "_idx")].Recs
+				key := Key{v_tmp.Value.Hash,
+					v_tmp.Value.Pos,
+					v_tmp.Value.Size, v_tmp.Value.IsDeleted,
+					v_tmp.Value.Kbyte}
+				s := string(recs[key].Data)
+				fmt.Printf("Строка %d  %s\n", v_tmp.Value.Pos, s)
+				v_tmp = v_tmp.Next
+				continue
+			}
+			break
+		}
+	}
 }

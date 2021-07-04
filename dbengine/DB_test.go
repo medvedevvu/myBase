@@ -8,6 +8,7 @@ import (
 	utl "myBase/utl"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type Tf struct {
@@ -53,11 +54,13 @@ func DBforTests(tblCount int, recIntable int, loaddata bool) (*MyDB, error) {
 			l_data := []byte(`test_data`)
 			adds := rand.Intn(recIntable)
 			l_data = append(l_data, []byte(fmt.Sprintf("%d", i*adds))...)
-			err = table.Add(l_data)
-			if err != nil {
-				msg := fmt.Sprintf("добавление данных %v в таблицу %s не выполнено %s\n",
-					l_data, itTbl.TableName, err)
-				return nil, errors.New(msg)
+			err = table.Add(l_data, l_data)
+			if err == nil {
+				_ = table.AddDataToFile(l_data)
+				pos := len(table.Recs)
+				lkey := Key{utl.AsSha256(l_data), int64(pos),
+					int64(len(l_data)), false, string(l_data)}
+				_ = table.TIndex.AddDataToFile(lkey)
 			}
 		}
 	}
@@ -112,7 +115,7 @@ func TestRestore(t *testing.T) {
 
 func TestWalk(t *testing.T) {
 	// создадим тестовый ландшафт
-	recsIntable := 2 // записей в таблицу
+	recsIntable := 1 // записей в таблицу
 	cntTable := 3    // кол-во таблиц
 	_, err := DBforTests(cntTable, recsIntable, true)
 	if err != nil {
@@ -129,7 +132,7 @@ func TestWalk(t *testing.T) {
 	// type FuncForWalk func(key, value []byte) error
 	// попробуем пройти по базе
 	var f FuncForWalk
-	f = func(key Key, value []byte) error {
+	f = func(key []byte, value []byte) error {
 		s := string(value)
 		fmt.Printf("ключ %v значение %s\n", key, s)
 		return nil
@@ -140,7 +143,7 @@ func TestWalk(t *testing.T) {
 		t.Errorf(msg)
 	}
 	var f1 FuncForWalk
-	f1 = func(key Key, value []byte) error {
+	f1 = func(key []byte, value []byte) error {
 		s := string(value)
 		msg := fmt.Sprintf("ключ %v значение %s\n", key, s)
 		return errors.New(msg)
@@ -156,21 +159,77 @@ func TestDigest(t *testing.T) {
 	// создадим тестовый ландшафт
 	recsIntable := 2 // записей в таблицу
 	cntTable := 3    // кол-во таблиц
-	_, err := DBforTests(cntTable, recsIntable, true)
+	db, err := DBforTests(cntTable, recsIntable, false)
 	if err != nil {
 		msg := fmt.Sprintf("ошибка создания тестовых данных %s \n", err)
 		t.Errorf(msg)
 	}
-	myBase := NewMyDB(WorkingDir)
-	ok, err, logs := myBase.Restore()
-	if !ok {
-		msg := fmt.Sprintf("ошибка восстановления %s %v\n", err, logs)
+	// тестируем метод обновления данных на диске
+	// теперь добавим в базу
+	tb, err := db.GetTableByName("Table1")
+	if err != nil {
+		msg := fmt.Sprintf("ошибка получения таблицы данных %s \n", err)
 		t.Errorf(msg)
 	}
-	// тестируем метод обновления данных на диске
-	err = myBase.Digest()
+	for i := 0; i < 3; i++ {
+		vPos := i * 100
+		vSize := i
+		adds := fmt.Sprintf("%d%d", vPos, vSize)
+		value := []byte("test")
+		value = append(value, adds...)
+		err := tb.Add(value, value)
+		if err != nil {
+			t.Errorf("ошибка %s добавления в таблицу данных %s \n", err, value)
+		}
+	}
+	time.Sleep(time.Millisecond * 2)
+	err = db.Digest()
 	if err != nil {
 		msg := fmt.Sprintf("ошибка обновления данных %s \n", err)
 		t.Errorf(msg)
+	}
+	// поробуем сделать recjvery но на другой БД
+	AnotherDB := NewMyDB(WorkingDir)
+	AnotherDB.Restore() // пробуем восстановиться
+	_, err = db.GetTableByName("Table1")
+	if err != nil {
+		msg := fmt.Sprintf("ошибка обновления данных %s \n", err)
+		t.Errorf(msg)
+	}
+}
+
+func TestStopBase(t *testing.T) {
+	// создадим тестовый ландшафт
+	recsIntable := 2 // записей в таблицу
+	cntTable := 3    // кол-во таблиц
+	db, err := DBforTests(cntTable, recsIntable, false)
+	if err != nil {
+		msg := fmt.Sprintf("ошибка создания тестовых данных %s \n", err)
+		t.Errorf(msg)
+	}
+	// тестируем метод обновления данных на диске
+	// теперь добавим в базу
+	tb, err := db.GetTableByName("Table1")
+	if err != nil {
+		msg := fmt.Sprintf("ошибка получения таблицы данных %s \n", err)
+		t.Errorf(msg)
+	}
+	for i := 0; i < 3; i++ {
+		vPos := i * 100
+		vSize := i
+		adds := fmt.Sprintf("%d%d", vPos, vSize)
+		value := []byte("test")
+		value = append(value, adds...)
+		err := tb.Add(value, value)
+		if err != nil {
+			t.Errorf("ошибка %s добавления в таблицу данных %s \n", err, value)
+		}
+	}
+	time.Sleep(time.Millisecond * 2)
+	errs := db.Stop()
+	if err != nil {
+		for _, e := range errs {
+			t.Errorf("%s \n", e)
+		}
 	}
 }

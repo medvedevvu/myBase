@@ -77,7 +77,7 @@ func TestUpdateIndexFile(t *testing.T) {
 		adds := fmt.Sprintf("%d%d", vPos, vSize)
 		value := []byte(`test`)
 		value = append(value, adds...)
-		wantKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+		wantKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false, string(value)}
 		err = Indx.Add(wantKey)
 		if err != nil {
 			t.Errorf("не прошло добавление ключа %v в индекс %s \n", wantKey, err)
@@ -88,7 +88,7 @@ func TestUpdateIndexFile(t *testing.T) {
 	adds := fmt.Sprintf("%d%d", vPos, vSize)
 	value := []byte(`test`)
 	value = append(value, adds...)
-	keyExist := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+	keyExist := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false, string(value)}
 
 	ok := Indx.Has(keyExist)
 	if !ok {
@@ -96,7 +96,7 @@ func TestUpdateIndexFile(t *testing.T) {
 		t.Errorf(msg)
 	}
 
-	keyNotExist := Key{utl.AsSha256(`12121221`), 333, 3, false}
+	keyNotExist := Key{utl.AsSha256(`12121221`), 333, 3, false, "12121221"}
 
 	ok = Indx.Has(keyNotExist)
 	if ok {
@@ -140,7 +140,7 @@ func TestDeleteDataIndexFile(t *testing.T) {
 		adds := fmt.Sprintf("%d%d", vPos, vSize)
 		value := []byte(`test`)
 		value = append(value, adds...)
-		wantKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false}
+		wantKey := Key{utl.AsSha256(value), int64(vPos), int64(vSize), false, string(value)}
 		if i == 2 {
 			willRemove = wantKey
 		}

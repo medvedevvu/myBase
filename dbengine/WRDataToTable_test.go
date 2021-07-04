@@ -34,7 +34,8 @@ func AppendSomeDataToTableInBase(tableName string) (*Table, error) {
 	for i := 0; i < 10; i++ {
 		l_data := []byte(`test data`)
 		l_data = append(l_data, []byte(fmt.Sprintf("%d", i))...)
-		err = table.Add(l_data)
+		err = table.Add(l_data, l_data)
+		//_ = table.AddDataToFile(l_data)
 		if err != nil {
 			msg := fmt.Sprintf("добавление данных %v в таблицу %s не выполнено %s\n",
 				l_data, tableName, err)
@@ -51,7 +52,7 @@ func TestWriteDataToTable(t *testing.T) {
 		t.Errorf("формирования тестовых данных %s \n", err)
 	}
 	l_data := []byte(`test data7`)
-	key := Key{utl.AsSha256(l_data), 0, 0, false} // поисковый ключ
+	key := Key{utl.AsSha256(l_data), 0, 0, false, string(l_data)} // поисковый ключ
 	var value []byte
 	value, err = table.GetRecByKey(key)
 	if err != nil {
@@ -72,8 +73,8 @@ func TestDeleteDataFromTable(t *testing.T) {
 		t.Errorf("формирования тестовых данных %s \n", err)
 	}
 	l_data := []byte(`test data7`)
-	key := Key{utl.AsSha256(l_data), 0, 0, false} // поисковый ключ
-	ok, err := table.Delete(key)
+	key := Key{utl.AsSha256(l_data), 0, 0, false, string(l_data)} // поисковый ключ
+	ok, err := table.Delete([]byte(key.Kbyte))
 	if !ok {
 		t.Errorf("ошибка удаления данных по ключу %v ошибка %s \n", key, err)
 	}
@@ -87,9 +88,9 @@ func TestUpdateDataInTable(t *testing.T) {
 		t.Errorf("формирования тестовых данных %s \n", err)
 	}
 	oldData := []byte(`test data7`)
-	key := Key{utl.AsSha256(oldData), 0, 0, false} // поисковый ключ
+	key := Key{utl.AsSha256(oldData), 0, 0, false, string(oldData)} // поисковый ключ
 	newData := []byte(`test data7777`)
-	err = table.Update(key, newData)
+	err = table.Update([]byte(key.Kbyte), newData)
 	if err != nil {
 		t.Errorf("ошибка обновлкения данных по ключу %v ошибка %s \n",
 			key, err)
